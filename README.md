@@ -1,1 +1,41 @@
-# mining
+# 한판 광산
+
+마우스를 바위 위에 올려 두면 곡괭이가 저절로 캐는 판타지 광산 게임(PC용). 캔 광석으로 스킬 트리를 열고 곡괭이를 만들어 돌층부터 별철층까지 내려가, 가장 깊은 곳의 **광산의 심장**을 깨면 클리어. 새 게임부터 클리어까지 걸린 시간으로 랭킹을 매겨요.
+
+- 게임: https://2juwon.github.io/mining/
+- 랭킹 서버: https://mining.2juwon.workers.dev (관리 페이지 `/admin`)
+
+## 게임 구성
+
+- **채굴**: 한 판 12초부터. 마우스 고리 안의 바위를 정해진 간격으로 때림. 치명타·번개(다른 바위로 튐)·폭발(주변 바위)·시간의 모래(+0.5초)
+- **광석 10가지**: 돌 → 구리 → 철 → 은 → 금 → 수정 → 미스릴 → 아다만트 → 흑요석 → 별철
+- **스킬 트리**: 가운데 기둥(광맥 열기) + 줄마다 양옆 가지 41칸. 아래로 내려갈수록 깊은 지층
+- **곡괭이 11가지**: 광석으로 만들고 보석으로 강화(레벨마다 +15%, 최대 10)
+- **재능 카드**: 레벨 업마다 3장 중 1장(보통·희귀·전설). 한 장마다 바위 체력 +4%
+- **자동 광산**: 화면을 보는 동안과 창을 닫아 둔 동안(최대 8시간) 광석을 캠
+- **클리어**: 별철 광맥 뒤 「광산의 심장」(체력 6천만, 판이 바뀌어도 이어짐)
+
+## 랭킹
+
+새 게임을 시작하면 서버가 도전 번호를 주고 시작 시각을 적어 둠 → 심장을 깨는 순간 서버가 자기 시계로 걸린 시간을 잼 → 이름(8자)을 올림(7일 안, 한 번). 20분보다 빠르거나 40판 미만인 기록은 거절하고 의견함에 자동 신고. 게임은 브라우저에서 돌아가서 저장 내용을 고친 기록까지는 못 막으니, 이상한 기록은 관리 페이지에서 지움.
+
+## 파일
+
+- `src/engine.js` — 규칙 엔진 `MG` (상태는 JSON, 화면과 무관)
+- `src/ui.html` — 화면(캔버스 채굴장, 스킬 트리, 곡괭이, 재능, 랭킹), 효과음은 WebAudio로 직접 만듦
+- `build.js` — `index.html`(Pages, 서버 주소 포함)과 `dist/mine.html`(아티팩트, 서버 없음)을 만듦
+- `config.json` — 랭킹 서버 주소
+- `server/` — Cloudflare Workers + Durable Objects(Rank, Inbox)
+- `test/rules.test.js` — 규칙 시험, `test/sim.js` — 자동 플레이로 진행 곡선 재기, `test/browser.py`·`test/online_browser.py` — 브라우저 시험, `server/test/rank.test.mjs` — 서버 시험
+
+## 고치는 방법
+
+```
+node test/rules.test.js
+node test/sim.js 8          # 균형을 바꿨으면 클리어 시간 확인 (잘하는 자동 플레이 약 30분)
+node build.js               # index.html 다시 만들기 → 커밋
+```
+
+서버는 `main`에 `server/`가 바뀌면 GitHub Actions '서버 배포'가 올림(Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, 관리용 `ADMIN_KEY`). 로컬 시험은 `cd server && npx wrangler dev --var FAST_TEST:1 --var ADMIN_KEY:test` → `node test/rank.test.mjs`.
+
+저장은 각자 브라우저에만(localStorage `hanpan-mine-v1`).
