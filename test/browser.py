@@ -33,7 +33,7 @@ with sync_playwright() as p:
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
     # 스킬 트리에서 살 수 있는 것 사기
     for _ in range(3):
-        for el in pg.locator('.node.buy').all()[:3]:
+        for el in pg.locator('.mn.buy').all()[:3]:
             try: el.click()
             except Exception: pass
     pg.mouse.move(700, 300)
