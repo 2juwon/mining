@@ -1020,7 +1020,11 @@ function renderSide() {
 // ── 채굴장 (WebGL — 바위 수천 개) ─────────────────────
 // 그림은 PixiJS가 그래픽카드로 그림(안 되면 캔버스로 자동). 엔진 좌표(채굴장 W×H)를 화면에 맞춰 줄여 보여 줌
 let sess = null, mouse = null, view = { s: 1, ox: 0, oy: 0, w: 0, h: 0 };
-let lastResult = null, shake = 0;
+let lastResult = null, shake = 0, shakeT = 0;
+// 화면 흔들림: 폭발이 수백 개 터져도 정신없지 않게 최대 3px, 부드럽게 흔들고 빨리 가라앉음 (심장 깰 때만 크게)
+const SHAKE_MAX = 3;
+const noMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const addShake = (v, cap) => { shake = Math.min(cap || SHAKE_MAX, shake + v); };
 const fieldW = () => (sess ? sess.st.W : MG.W), fieldH = () => (sess ? sess.st.H : MG.H);
 const UZ = () => (sess ? sess.st.field : 1); // 글자·선 굵기를 화면 기준으로 같게 유지
 const PX = {}; // Pixi 물건들
@@ -1338,14 +1342,14 @@ function tick() {
       const wasCleared = S.cleared;
       MG.step(S, sess, d, cur);
       handleEvents();
-      if (!wasCleared && S.cleared) { sess.clearedNow = true; sess.over = true; shake = 28; }
+      if (!wasCleared && S.cleared) { sess.clearedNow = true; sess.over = true; shake = 12; }
       if (sess.over) break;
     }
     const sec = Math.ceil(sess.timeLeft);
     if (sec !== tickSec) { tickSec = sec; if (sec <= 3 && sec > 0) sfx('tick'); }
     if (sess.over && !sess.ending) { const me = sess; me.ending = true; setTimeout(() => { if (sess === me) endSessionNow(false); }, me.clearedNow ? 1200 : 450); }
   }
-  if (brokeFrame) { sfx('rumble', brokeFrame); sess.combo += brokeFrame; sess.comboT = 0.8; if (brokeFrame > 25) shake = Math.min(14, shake + brokeFrame / 25); }
+  if (brokeFrame) { sfx('rumble', brokeFrame); sess.combo += brokeFrame; sess.comboT = 0.8; if (brokeFrame > 25) addShake(brokeFrame / 120); }
   sess.comboT -= real; if (sess.comboT <= 0 && sess.combo) { sess.comboMax = Math.max(sess.comboMax, sess.combo); sess.combo = 0; sess.genShown = 0; }
   if (sess.combo) sess.genShown = Math.max(sess.genShown, sess.genMax);
   // 프레임에 따라 파편 양 조절
@@ -1360,7 +1364,7 @@ function handleEvents() {
   for (const e of sess.ev) {
     if (e.e === 'hit') {
       if (e.k) e.k.kick = 1;
-      if (e.k && e.k.heart) { sess.heartAcc += e.dmg; shake = Math.max(shake, 4); burst(e.x + (Math.random() - 0.5) * 60 * z, e.y + (Math.random() - 0.5) * 60 * z, '#ff4f5e', 3, 4); }
+      if (e.k && e.k.heart) { sess.heartAcc += e.dmg; shake = Math.max(shake, 1.2); burst(e.x + (Math.random() - 0.5) * 60 * z, e.y + (Math.random() - 0.5) * 60 * z, '#ff4f5e', 3, 4); }
       if (e.crit && !many && Math.random() < 0.3) glow(e.x, e.y, (e.k ? e.k.r : 20) * 3, 0xffd36b, 0.18);
     } else if (e.e === 'break') {
       const c = T[e.tier];
@@ -1374,7 +1378,7 @@ function handleEvents() {
     } else if (e.e === 'boom') {
       ring(e.x, e.y, e.r, 0xffa04a);
       glow(e.x, e.y, e.r * 1.4, 0xff8a3a, 0.25);
-      shake = Math.min(14, shake + 0.4);
+      addShake(0.08);
       sfx('boom');
     } else if (e.e === 'zap') {
       if (PX.zaps.length < 24) PX.zaps.push({ x1: e.x1, y1: e.y1, x2: e.x2, y2: e.y2, life: 0, seed: Math.random() * 1e6 }); // 번개는 화면에 24줄까지만
@@ -1394,9 +1398,11 @@ function handleEvents() {
 function render(dt) {
   const z = UZ(), t = performance.now() / 1000;
   // 흔들림
-  shake = Math.max(0, shake * 0.86 - 0.05);
-  PX.world.x = view.ox + (shake > 0.3 ? (Math.random() - 0.5) * shake : 0);
-  PX.world.y = view.oy + (shake > 0.3 ? (Math.random() - 0.5) * shake : 0);
+  shake = Math.max(0, shake * 0.8 - 0.05);
+  shakeT += dt;
+  const sk = noMotion || shake < 0.2 ? 0 : shake;
+  PX.world.x = view.ox + Math.sin(shakeT * 47) * sk * 0.6;
+  PX.world.y = view.oy + Math.cos(shakeT * 39) * sk * 0.6;
   // 바위: 살아 있는 바위를 앞에서부터 그림 칸에 채워 넣음
   const sp = PX.rockSp;
   let i = 0, heart = null;
