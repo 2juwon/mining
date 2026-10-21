@@ -1,0 +1,2170 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="마우스를 바위 위에 올려 두고 캐는 판타지 광산 게임. 광석으로 스킬 트리를 열고 곡괭이를 만들어 가장 깊은 곳의 광산의 심장을 깨세요. 클리어 시간 랭킹.">
+<meta property="og:title" content="한판 광산 클래식">
+<meta property="og:description" content="돌부터 별철까지, 광산의 심장을 누가 가장 빨리 깰까요?">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%227%22%20fill%3D%22%231c1714%22%2F%3E%3Cpath%20d%3D%22M5%2011c6-5%2016-5%2022%200%22%20fill%3D%22none%22%20stroke%3D%22%23f2a541%22%20stroke-width%3D%223.4%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M16%209v19%22%20stroke%3D%22%23c48a52%22%20stroke-width%3D%223.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>한판 광산 클래식</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 배치: 위 띠(광석 주머니) + 아래 넓은 작업장 — 캠프(스킬 트리·곡괭이·재능·랭킹 + 오른쪽 장비 칸) ↔ 채굴장(캔버스 가득) */
+:root {
+  --soot: #110e0c;      /* 바탕: 갱도 그을음 */
+  --rock: #1c1714;      /* 판 */
+  --rock-2: #272019;    /* 올라온 판 */
+  --seam: #3d3229;      /* 선 */
+  --dust: #a8967f;      /* 흐린 글자 */
+  --parch: #f1e6d2;     /* 글자 */
+  --lamp: #f2a541;      /* 등불 (강조) */
+  --lamp-deep: #a8601a;
+  --ember: #ff6a3d;     /* 경고 */
+  --moss: #9bd17f;      /* 살 수 있음 */
+  --display: "Hahmlet", "Nanum Myeongjo", "AppleMyungjo", serif;
+  --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--soot); color: var(--parch); font: 14px/1.5 var(--body); overflow: hidden; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+#app { height: 100%; overflow: hidden; display: grid; grid-template-rows: auto 1fr; padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+
+/* ── 위 띠 ── */
+.top { display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: linear-gradient(#1f1915, #16120f); border-bottom: 1px solid var(--seam); min-width: 0; }
+.brand { font-family: var(--display); font-weight: 900; font-size: 22px; letter-spacing: -0.02em; color: var(--lamp); white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.brand svg { width: 26px; height: 26px; }
+.bag { display: flex; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
+.ore { display: flex; align-items: center; gap: 5px; padding: 4px 8px 4px 5px; border-radius: 8px; background: var(--rock); border: 1px solid var(--seam); white-space: nowrap; min-width: 0; transition: transform .12s; }
+.ore svg { width: 18px; height: 18px; flex: none; }
+.ore b { font-weight: 700; font-size: 13px; }
+.ore.lock { opacity: .28; }
+.ore.bump { transform: translateY(-3px); border-color: var(--lamp-deep); }
+.ore[data-tip] { cursor: default; }
+.lv { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.lvring { position: relative; width: 40px; height: 40px; }
+.lvring svg { width: 40px; height: 40px; transform: rotate(-90deg); }
+.lvring b { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 900; font-size: 15px; }
+.lvmeta { line-height: 1.25; }
+.lvmeta small { color: var(--dust); display: block; font-size: 11px; }
+.clock { font-family: var(--display); font-weight: 700; font-size: 18px; min-width: 76px; text-align: right; }
+.clock small { display: block; font: 500 10px var(--body); color: var(--dust); letter-spacing: .06em; }
+.iconbtn { width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--seam); background: var(--rock); display: grid; place-items: center; }
+.iconbtn svg { width: 18px; height: 18px; }
+.iconbtn:hover { border-color: var(--dust); }
+
+/* ── 캠프 ── */
+.camp { display: grid; grid-template-columns: 1fr 330px; min-height: 0; }
+.panel { display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0; }
+.tabs { display: flex; gap: 2px; padding: 12px 18px 0; border-bottom: 1px solid var(--seam); }
+.tab { position: relative; background: none; border: 0; padding: 10px 18px 12px; margin-right: 6px; color: var(--dust); font-family: var(--display); font-weight: 700; font-size: 16px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--parch); border-color: var(--lamp); }
+.tab:hover { color: var(--parch); }
+.dot { position: absolute; top: 2px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--ember); color: #fff; font: 700 11px/18px var(--body); text-align: center; }
+.view { overflow: auto; min-height: 0; position: relative; }
+.side { border-left: 1px solid var(--seam); background: var(--rock); display: flex; flex-direction: column; min-height: 0; }
+.side-in { padding: 18px; display: flex; flex-direction: column; gap: 16px; overflow: auto; flex: 1; }
+.go { margin: 0 18px 18px; padding: 16px; border: 0; border-radius: 14px; background: linear-gradient(180deg, #ffbe5c, var(--lamp) 45%, #d9822a); color: #2a1606; font-family: var(--display); font-weight: 900; font-size: 22px; box-shadow: 0 6px 0 #7d4510, 0 10px 24px rgba(242,165,65,.25); transition: transform .08s, box-shadow .08s; }
+.go small { display: block; font: 500 12px var(--body); opacity: .75; }
+.go:hover { transform: translateY(-1px); }
+.go:active { transform: translateY(4px); box-shadow: 0 2px 0 #7d4510; }
+h3 { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .08em; color: var(--dust); margin: 0 0 8px; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 13px; }
+.kv span { color: var(--dust); }
+.kv b { font-weight: 500; text-align: right; }
+.pickcard { display: flex; gap: 12px; align-items: center; }
+.pickcard svg { width: 54px; height: 54px; flex: none; }
+.pickcard b { font-family: var(--display); font-size: 16px; display: block; }
+.pickcard small { color: var(--dust); }
+.minebox { border: 1px solid var(--seam); border-radius: 10px; padding: 10px 12px; background: var(--rock-2); font-size: 12px; color: var(--dust); }
+.minebox b { color: var(--parch); }
+.last { font-size: 13px; }
+.last .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 4px; border-radius: 6px; background: var(--rock-2); font-size: 12px; }
+.chip svg { width: 15px; height: 15px; }
+
+/* 스킬 트리 — 가운데에서 나선으로 뻗는 생각 지도, 안 가 본 곳은 안개 */
+.view.maptab { overflow: hidden; }
+.mapwrap { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none; background: #1a1714; user-select: none; }
+.mapwrap.drag { cursor: grabbing; }
+.map { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.map > canvas, .map > .wires, .map > .drift { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.drift { background-repeat: repeat; animation: drift 90s linear infinite; opacity: .55; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+@keyframes drift { from { background-position: 0 0; } to { background-position: 1024px 512px; } }
+.mn { position: absolute; width: 78px; height: 78px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid var(--tier, var(--seam)); background: radial-gradient(circle at 50% 30%, #2f2720, #17120f 75%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 0; transition: box-shadow .15s, filter .15s; }
+.mn svg.ic { width: 28px; height: 28px; }
+.mn .pips { display: flex; gap: 3px; }
+.mn .pips i { width: 6px; height: 6px; border-radius: 50%; background: #3d3229; }
+.mn .pips i.on { background: var(--lamp); }
+.mn .lab { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 700; color: var(--parch); text-shadow: 0 1px 4px #000, 0 0 8px #000; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.mn .lab .cost { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; color: var(--dust); }
+.mn .lab .cost svg { width: 12px; height: 12px; }
+.mn.spine { width: 104px; height: 104px; border-width: 3px; background: radial-gradient(circle at 50% 30%, var(--tierRock, #3a2e24), #120e0b 80%); }
+.mn.spine svg.ic { width: 36px; height: 36px; }
+.mn.spine .lab { font-family: var(--display); font-size: 15px; }
+.mn.own { box-shadow: 0 0 0 4px rgba(0,0,0,.4), 0 0 22px color-mix(in srgb, var(--tier) 35%, transparent); }
+.mn.max { border-color: var(--lamp); }
+.mn.front.open { filter: saturate(.55) brightness(.85); }
+.mn.front.buy { border-color: var(--moss); animation: ready 1.6s ease-in-out infinite; }
+.mn.front.buy .lab .cost { color: var(--moss); }
+@keyframes ready { 0%, 100% { box-shadow: 0 0 0 3px rgba(155,209,127,.15), 0 0 12px rgba(155,209,127,.15); } 50% { box-shadow: 0 0 0 6px rgba(155,209,127,.22), 0 0 26px rgba(155,209,127,.3); } }
+.mn.front.locked { filter: grayscale(.7) brightness(.7); }
+.mn.mast { border-radius: 24px; width: 72px; height: 72px; background: radial-gradient(circle at 50% 30%, var(--tierRock, #2f2720), #120e0b 80%); }
+.mn.mast svg.ic { width: 26px; height: 26px; }
+.mn .mlv { font: 700 11px var(--body); color: var(--lamp); }
+.mn.ghost { width: 56px; height: 56px; border: 2px dashed rgba(200,180,150,.35); background: rgba(30,25,21,.6); color: rgba(220,200,170,.5); font: 900 22px var(--display); cursor: default; }
+.mn.ghost.spine { width: 76px; height: 76px; }
+.mn:not(.ghost):hover { filter: brightness(1.2); }
+.mn.flash { animation: flash .6s; }
+.mn.reveal { animation: reveal .9s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 rgba(242,165,65,.9); } 100% { box-shadow: 0 0 0 30px rgba(242,165,65,0); } }
+@keyframes reveal { from { opacity: 0; transform: translate(-50%, -50%) scale(.6); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+.mapctl { position: absolute; left: 16px; bottom: 16px; display: flex; gap: 6px; align-items: center; z-index: 3; }
+.mapctl .iconbtn { font: 700 18px var(--body); }
+.mapctl span { color: var(--dust); font-size: 12px; margin-left: 6px; text-shadow: 0 1px 4px #000; }
+.maplegend { position: absolute; right: 16px; bottom: 16px; z-index: 3; display: flex; gap: 12px; font-size: 12px; color: var(--dust); background: rgba(12,10,9,.75); border: 1px solid var(--seam); border-radius: 10px; padding: 6px 10px; }
+.maplegend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 2px solid; }
+
+.tip { position: fixed; z-index: 50; pointer-events: none; max-width: 260px; background: #0b0908; border: 1px solid var(--seam); border-radius: 10px; padding: 10px 12px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.tip b { font-family: var(--display); font-size: 15px; display: block; margin-bottom: 2px; }
+.tip .t-sub { color: var(--dust); font-size: 12px; }
+.tip .t-cost { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.tip .t-cost span { display: inline-flex; align-items: center; gap: 3px; }
+.tip .t-cost svg { width: 14px; height: 14px; }
+.tip .short { color: var(--ember); }
+
+/* 곡괭이 */
+.grid-wrap { padding: 20px 22px 40px; }
+.lead { color: var(--dust); margin: 0 0 16px; max-width: 62ch; }
+.picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.pk { border: 1.5px solid var(--seam); border-radius: 14px; background: var(--rock); padding: 14px; display: grid; grid-template-columns: 64px 1fr; gap: 6px 12px; align-content: start; }
+.pk svg.art { width: 64px; height: 64px; grid-row: span 2; }
+.pk h4 { margin: 0; font-family: var(--display); font-size: 16px; }
+.pk .st { font-size: 12px; color: var(--dust); }
+.pk .fx { grid-column: 1 / -1; font-size: 12px; color: var(--lamp); min-height: 18px; }
+.pk .need { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.pk .need span { display: inline-flex; align-items: center; gap: 3px; }
+.pk .need svg { width: 14px; height: 14px; }
+.pk .act { grid-column: 1 / -1; display: flex; gap: 6px; }
+.pk.eq { border-color: var(--lamp); }
+.pk.locked { opacity: .3; }
+.btn { border: 1px solid var(--seam); background: var(--rock-2); border-radius: 9px; padding: 7px 12px; font-weight: 700; font-size: 13px; }
+.btn:hover:not(:disabled) { border-color: var(--dust); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.hot { background: var(--moss); color: #14210c; border-color: var(--moss); }
+.btn.lamp { background: var(--lamp); color: #2a1606; border-color: var(--lamp); }
+
+/* 재능 */
+.offer { display: grid; grid-template-columns: repeat(3, minmax(0, 220px)); gap: 16px; margin: 6px 0 26px; }
+.card { position: relative; border-radius: 16px; border: 2px solid var(--seam); background: linear-gradient(170deg, var(--rock-2), var(--rock)); padding: 20px 16px 16px; text-align: left; display: flex; flex-direction: column; gap: 8px; min-height: 200px; transition: transform .12s, border-color .12s; }
+.card:hover { transform: translateY(-4px); border-color: var(--parch); }
+.card .rar { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--dust); }
+.card h4 { margin: 0; font-family: var(--display); font-size: 20px; }
+.card p { margin: 0; font-size: 15px; }
+.card .key { margin-top: auto; font-size: 11px; color: var(--dust); }
+.card svg { width: 40px; height: 40px; }
+.card.r1 { border-color: #5aa7e0; } .card.r1 .rar { color: #8cc8f2; }
+.card.r2 { border-color: #e0a53d; background: linear-gradient(170deg, #3b2a12, var(--rock)); } .card.r2 .rar { color: var(--lamp); }
+.owned { display: flex; flex-wrap: wrap; gap: 8px; }
+.owned .chip { padding: 4px 10px; font-size: 13px; }
+
+/* 랭킹 */
+.rank-wrap { padding: 20px 22px 40px; max-width: 760px; }
+.runbox { border: 1px solid var(--seam); border-radius: 14px; padding: 16px; background: var(--rock); margin-bottom: 18px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.runbox .big { font-family: var(--display); font-weight: 900; font-size: 28px; }
+.runbox p { margin: 0; color: var(--dust); font-size: 13px; flex: 1; min-width: 220px; }
+.board { width: 100%; border-collapse: collapse; font-size: 14px; }
+.board th { text-align: left; font-weight: 500; color: var(--dust); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--seam); }
+.board td { padding: 8px; border-bottom: 1px solid rgba(61,50,41,.5); }
+.board td.pl { font-family: var(--display); font-weight: 900; width: 48px; }
+.board tr.me td { background: rgba(242,165,65,.1); }
+.board tr:nth-child(1) td.pl { color: #ffd36b; } .board tr:nth-child(2) td.pl { color: #d9e1ea; } .board tr:nth-child(3) td.pl { color: #e39a62; }
+.muted { color: var(--dust); }
+.namefm { display: flex; gap: 8px; flex-wrap: wrap; }
+.namefm input { min-width: 0; flex: 1; max-width: 220px; height: 40px; border-radius: 9px; border: 1px solid var(--seam); background: var(--soot); color: var(--parch); padding: 0 12px; font: inherit; font-size: 16px; }
+
+/* ── 채굴장 ── */
+.mine { position: relative; min-height: 0; background: #0a0807; overflow: hidden; }
+.mine canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: none; }
+.hud { position: absolute; top: 14px; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none; }
+.timer { min-width: 300px; text-align: center; }
+.timer b { font-family: var(--display); font-weight: 900; font-size: 40px; line-height: 1; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+.timer b.low { color: var(--ember); }
+.bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); margin-top: 8px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--lamp); border-radius: 3px; }
+.hud-left { position: absolute; left: 18px; top: 14px; font-size: 13px; color: var(--dust); pointer-events: none; text-shadow: 0 1px 6px #000; }
+.hud-left b { display: block; font-family: var(--display); font-size: 24px; color: var(--parch); }
+.hud-right { position: absolute; right: 18px; top: 14px; text-align: right; pointer-events: none; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.hud-right .chip { background: rgba(28,23,20,.8); }
+.esc { position: absolute; right: 18px; bottom: 14px; font-size: 12px; color: var(--dust); }
+.esc kbd, .go kbd, .btn kbd { font: 700 11px var(--body); border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; }
+
+.result { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8,6,5,.55); backdrop-filter: blur(3px); }
+.rc { width: min(460px, calc(100% - 32px)); background: var(--rock); border: 1px solid var(--seam); border-radius: 18px; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,.6); animation: rise .25s ease-out; }
+@keyframes rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+.rc h2 { margin: 0 0 4px; font-family: var(--display); font-weight: 900; font-size: 26px; }
+.rc .score { font-family: var(--display); font-weight: 900; font-size: 44px; color: var(--lamp); line-height: 1.1; }
+.rc .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+.rc .row { display: flex; gap: 8px; margin-top: 16px; }
+.rc .row .btn { flex: 1; padding: 12px; font-size: 15px; }
+.newbest { display: inline-block; font-size: 12px; font-weight: 700; color: #2a1606; background: var(--lamp); border-radius: 6px; padding: 1px 8px; vertical-align: middle; }
+
+.toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: #0b0908; border: 1px solid var(--seam); border-radius: 12px; padding: 10px 16px; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,.6); max-width: calc(100% - 32px); animation: rise .2s ease-out; }
+
+.modal { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(8,6,5,.6); padding: 16px; }
+.modal .rc { max-height: calc(100% - 32px); overflow: auto; }
+.modal textarea { width: 100%; min-height: 120px; border-radius: 10px; border: 1px solid var(--seam); background: var(--soot); color: var(--parch); padding: 10px; font: inherit; resize: vertical; }
+.menu-list { display: flex; flex-direction: column; gap: 8px; }
+.menu-list .btn { text-align: left; padding: 12px 14px; font-size: 15px; }
+.seg { display: flex; gap: 6px; margin-bottom: 10px; }
+.seg .btn[aria-pressed="true"] { background: var(--parch); color: var(--soot); }
+
+.clear { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 45%, rgba(255,90,60,.25), rgba(8,6,5,.85) 60%); }
+.clear .rc { text-align: center; border-color: var(--lamp-deep); }
+.clear .rc h2 { font-size: 30px; color: var(--lamp); }
+.clear .t { font-family: var(--display); font-weight: 900; font-size: 54px; line-height: 1.1; margin: 8px 0; }
+
+.narrow { display: none; }
+@media (max-width: 760px) {
+  .narrow:not(.dismissed) { display: grid; position: fixed; inset: 0; z-index: 80; place-items: center; background: var(--soot); text-align: center; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); }
+  .narrow h2 { font-family: var(--display); font-size: 26px; margin: 12px 0 6px; color: var(--lamp); }
+  .narrow p { color: var(--dust); max-width: 32ch; margin: 0 auto 18px; }
+  .camp { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .side { border-left: 0; border-top: 1px solid var(--seam); max-height: 40vh; }
+  .bag, .lvmeta, .clock small { display: none; }
+  .top { gap: 10px; padding-inline: 12px; }
+  .clock { min-width: 0; font-size: 15px; }
+  .brand { font-size: 18px; }
+  .offer { grid-template-columns: 1fr; }
+}
+/* 테스트 모드 — 공사장 줄무늬 */
+.brand { cursor: default; }
+.brand.spin svg { animation: spin .6s ease-out; }
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(720deg); } }
+.testbadge { font: 900 12px var(--body); letter-spacing: .04em; padding: 4px; border-radius: 8px; border: 0; background: repeating-linear-gradient(-45deg, #ffcf3a 0 8px, #1a1406 8px 16px); white-space: nowrap; }
+.testbadge span { display: block; background: #1a1406; color: #ffcf3a; padding: 3px 8px; border-radius: 5px; }
+.testpanel { position: fixed; left: 16px; top: 130px; z-index: 45; width: 300px; max-height: calc(100% - 146px); overflow: auto; background: #0e0c0a; border: 2px solid #ffcf3a; border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.6); font-size: 13px; }
+.testpanel header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: repeating-linear-gradient(-45deg, #2a2208 0 12px, #1a1406 12px 24px); border-bottom: 1px solid #5a4a14; cursor: move; user-select: none; }
+.testpanel header b { font-family: var(--display); font-size: 16px; color: #ffcf3a; flex: 1; }
+.testpanel header button { border: 1px solid #5a4a14; background: #0e0c0a; border-radius: 7px; padding: 3px 9px; font-size: 12px; }
+.testpanel .tp-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+.testpanel.min .tp-body { display: none; }
+.testpanel h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: .08em; color: #c8a84a; font-weight: 700; }
+.tp-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.tp-row .btn { padding: 6px 9px; font-size: 12px; }
+.tp-row .btn[aria-pressed="true"] { background: #ffcf3a; color: #1a1406; border-color: #ffcf3a; }
+.tp-note { color: var(--dust); font-size: 11px; margin: 0; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+
+<div id="app">
+  <header class="top">
+    <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 9c6-5 16-5 22 0" fill="none" stroke="#c9cfd6" stroke-width="3.2" stroke-linecap="round"/><path d="M16 7v21" stroke="#9a6a3d" stroke-width="3.4" stroke-linecap="round"/></svg>한판 광산 <small style="font:700 11px var(--body);color:var(--dust);letter-spacing:.05em">클래식</small></div>
+    <div class="bag" id="bag"></div>
+    <div class="lv"><div class="lvring"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#3d3229" stroke-width="4"/><circle id="xpArc" cx="20" cy="20" r="17" fill="none" stroke="#f2a541" stroke-width="4" stroke-linecap="round" stroke-dasharray="107" stroke-dashoffset="107"/></svg><b id="lvNum">1</b></div><div class="lvmeta num"><span id="xpTxt">0 / 25</span><small>경험치</small></div></div>
+    <button class="testbadge" id="testBadge" hidden><span>테스트 모드</span></button>
+    <div class="clock num" id="clock">0:00<small>걸린 시간</small></div>
+    <button class="iconbtn" id="soundBtn" aria-label="소리 켜고 끄기"></button>
+    <button class="iconbtn" id="menuBtn" aria-label="메뉴"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+  </header>
+
+  <main class="camp" id="camp">
+    <section class="panel">
+      <nav class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="tree" aria-selected="true">스킬 트리</button>
+        <button class="tab" role="tab" data-tab="picks" aria-selected="false">곡괭이</button>
+        <button class="tab" role="tab" data-tab="talent" aria-selected="false">재능</button>
+        <button class="tab" role="tab" data-tab="rank" aria-selected="false">랭킹</button>
+      </nav>
+      <div class="view" id="view"></div>
+    </section>
+    <aside class="side">
+      <div class="side-in" id="side"></div>
+      <button class="go" id="goBtn">채굴 시작<small><kbd>Space</kbd> 를 눌러도 돼요</small></button>
+    </aside>
+  </main>
+
+  <main class="mine" id="mine" hidden>
+    <canvas id="cv"></canvas>
+    <div class="hud-left num" id="hudL"></div>
+    <div class="hud"><div class="timer num"><b id="tLeft">12.0</b><div class="bar"><i id="tBar"></i></div></div></div>
+    <div class="hud-right" id="hudR"></div>
+    <div class="esc"><kbd>Esc</kbd> 그만 캐기</div>
+    <div class="result" id="result" hidden></div>
+    <div class="clear" id="clearBox" hidden></div>
+  </main>
+</div>
+
+<div class="narrow" id="narrow">
+  <div>
+    <svg viewBox="0 0 32 32" width="64" height="64" aria-hidden="true"><path d="M5 9c6-5 16-5 22 0" fill="none" stroke="#c9cfd6" stroke-width="3.2" stroke-linecap="round"/><path d="M16 7v21" stroke="#9a6a3d" stroke-width="3.4" stroke-linecap="round"/></svg>
+    <h2>한판 광산은 PC용이에요</h2>
+    <p>마우스를 바위 위에 올려 두고 캐는 게임이라 넓은 화면과 마우스가 필요해요. 컴퓨터에서 열어 주세요.</p>
+    <button class="btn" id="narrowGo">그래도 둘러보기</button>
+  </div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script id="core">
+/* 한판 광산 — 규칙 엔진 (화면과 무관, 브라우저·Node 모두에서 동작)
+ * 저장 상태(s)는 JSON 그대로 저장 가능. 채굴 한 판(sess)은 저장하지 않음.
+ * 좌표: 채굴장 1000 × 600 (화면이 알아서 늘이고 줄임)
+ */
+(function (root) {
+  'use strict';
+  const VERSION = 1;
+  const W = 1000, H = 600;
+
+  // ── 광석 ─────────────────────────────────────────
+  const TIERS = [
+    { id: 'stone', name: '돌', hp: 3, val: 1, rock: '#48423c', vein: '#8d8578', r: 21 },
+    { id: 'copper', name: '구리', hp: 12, val: 3, rock: '#5f4c42', vein: '#e0814a', r: 22 },
+    { id: 'iron', name: '철', hp: 60, val: 10, rock: '#4d4b4c', vein: '#c9cfd6', r: 23 },
+    { id: 'silver', name: '은', hp: 240, val: 30, rock: '#4b5059', vein: '#eef4ff', r: 24 },
+    { id: 'gold', name: '금', hp: 960, val: 100, rock: '#544636', vein: '#ffc94a', r: 25 },
+    { id: 'crystal', name: '수정', hp: 3800, val: 300, rock: '#3c4a5e', vein: '#8fe0ff', r: 26 },
+    { id: 'mithril', name: '미스릴', hp: 15000, val: 1000, rock: '#334a47', vein: '#7cf2cf', r: 27 },
+    { id: 'adamant', name: '아다만트', hp: 60000, val: 3000, rock: '#4a2f36', vein: '#ff5f7e', r: 28 },
+    { id: 'obsidian', name: '흑요석', hp: 280000, val: 10000, rock: '#241d33', vein: '#b28cff', r: 29 },
+    { id: 'star', name: '별철', hp: 1200000, val: 30000, rock: '#2a2c3d', vein: '#fff3b0', r: 30 },
+  ];
+  const HEART = { name: '광산의 심장', hp: 150000000, r: 64 };
+
+  // ── 스킬 트리 ─────────────────────────────────────
+  // row = 깊이(그 줄 광석으로 값을 냄), col = 가로 자리(0이 가운데 기둥)
+  // k: 효과 종류, v: 레벨당 값, max: 최대 레벨, b: 첫 값, g: 레벨마다 몇 배
+  const NODES = [];
+  const MAST_V = 0.015;
+  const SPINE_NAMES = ['광부의 첫걸음', '구리 광맥', '철 광맥', '은 광맥', '금 광맥', '수정 동굴', '미스릴 광맥', '아다만트 광맥', '흑요석 지대', '별철 낙하지'];
+  for (let t = 0; t < TIERS.length; t++) {
+    NODES.push({ id: 'd' + t, row: t, col: 0, k: 'depth', v: t, max: 1, name: SPINE_NAMES[t],
+      desc: t ? `${TIERS[t].name} 바위가 나오기 시작해요` : '돌을 캘 수 있어요', ct: Math.max(0, t - 1), b: t ? 40 + t * 8 : 0, g: 1 });
+  }
+  NODES.push({ id: 'heart', row: 10, col: 0, k: 'heart', v: 1, max: 1, name: '광산의 심장', desc: '가장 깊은 곳의 심장이 드러나요. 깨면 클리어!', ct: 9, b: 160, g: 1, extra: { 8: 600, 7: 2000 } });
+
+  const fam = {
+    dmg: ['날 세우기', '공격력 +{p}%'],
+    spd: ['손목 단련', '휘두르는 간격 −{p}%'],
+    rad: ['큰 휘두르기', '채굴 범위 +{n}'],
+    time: ['도시락', '채굴 시간 +{n}초'],
+    rocks: ['빽빽한 광맥', '바위 최대 수 +{n}'],
+    spawn: ['솟아나는 바위', '바위 생기는 속도 +{p}%'],
+    ore: ['꼼꼼한 줍기', '광석 +{p}%'],
+    crit: ['급소 찾기', '치명타 확률 +{p}%'],
+    critD: ['한 방의 무게', '치명타 피해 +{p}%'],
+    gem: ['보석 눈썰미', '보석 나올 확률 +{p}%p'],
+    xp: ['경험 많은 광부', '경험치 +{p}%'],
+    chain: ['번개 곡괭이', '때릴 때 {p}% 확률로 번개'],
+    boom: ['폭약 상자', '깨질 때 {p}% 확률로 폭발'],
+    sand: ['시간의 모래', '깰 때 {p}% 확률로 +0.5초 (한 판에 채굴 시간의 절반까지)'],
+    luck: ['광맥 탐지', '깊은 광석이 더 자주'],
+    mine: ['자동 광산', '쉬는 동안에도 광석을 캠'],
+  };
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+  const famCount = {};
+  function side(row, col, k, v, max, b, g) {
+    famCount[k] = (famCount[k] || 0) + 1;
+    const [nm, d] = fam[k];
+    NODES.push({ id: k + famCount[k], row, col, k, v, max, b, g: g || 1.55, ct: row,
+      name: nm + ' ' + ROMAN[famCount[k]], desc: d });
+  }
+  // 줄마다 양옆 가지 (col −3 … 3)
+  side(0, -1, 'dmg', 0.2, 5, 6);
+  side(0, 1, 'time', 1, 3, 12, 1.8);
+  side(0, -2, 'rad', 6, 3, 15);
+  side(0, 2, 'ore', 0.12, 3, 18);
+  side(1, -1, 'spd', 0.05, 5, 8);
+  side(1, 1, 'rocks', 4, 5, 12, 1.55);
+  side(1, -2, 'crit', 0.02, 5, 10);
+  side(1, 2, 'spawn', 0.15, 3, 14);
+  side(1, 3, 'mine', 1, 5, 25, 1.6);
+  side(2, -1, 'dmg', 0.25, 5, 9);
+  side(2, 1, 'time', 1, 3, 18, 1.8);
+  side(2, -2, 'gem', 0.005, 3, 15);
+  side(2, 2, 'xp', 0.15, 3, 12);
+  side(3, -1, 'critD', 0.25, 5, 10);
+  side(3, 1, 'rad', 8, 3, 15);
+  side(3, -2, 'sand', 0.03, 3, 16);
+  side(3, 2, 'boom', 0.05, 3, 18);
+  side(4, -1, 'ore', 0.15, 5, 12);
+  side(4, 1, 'spd', 0.04, 5, 12);
+  side(4, -2, 'luck', 0.15, 3, 18);
+  side(4, 2, 'mine', 1, 5, 20, 1.6);
+  side(5, -1, 'dmg', 0.3, 5, 12);
+  side(5, 1, 'chain', 0.06, 3, 16);
+  side(5, -2, 'rocks', 5, 5, 18, 1.55);
+  side(5, 2, 'time', 1, 3, 22, 1.8);
+  side(6, -1, 'crit', 0.02, 5, 12);
+  side(6, 1, 'critD', 0.3, 5, 12);
+  side(6, -2, 'spawn', 0.15, 3, 16);
+  side(6, 2, 'boom', 0.05, 3, 18);
+  side(7, -1, 'dmg', 0.35, 5, 14);
+  side(7, 1, 'rad', 8, 3, 18);
+  side(7, -2, 'ore', 0.2, 5, 14);
+  side(7, 2, 'mine', 1, 5, 20, 1.6);
+  side(8, -1, 'spd', 0.04, 5, 14);
+  side(8, 1, 'chain', 0.06, 3, 18);
+  side(8, -2, 'sand', 0.03, 3, 18);
+  side(8, 2, 'luck', 0.15, 3, 20);
+  side(9, -1, 'dmg', 0.4, 5, 16);
+  side(9, 1, 'time', 1, 3, 26, 1.8);
+  side(9, -2, 'xp', 0.2, 3, 16);
+  side(9, 2, 'critD', 0.35, 5, 16);
+  // 광석 숙련: 광석마다 하나, 레벨 끝없음, 그 광석으로만 값을 냄. 한 층 더 내려가야 열림(다 쓴 광석의 쓸 곳)
+  for (let t = 0; t < TIERS.length; t++) {
+    NODES.push({ id: 'm' + t, row: t, col: 'm', k: 'mast', v: MAST_V, max: Infinity, b: 40, g: 1.3, ct: t,
+      after: t < 9 ? 'd' + (t + 1) : 'heart', name: TIERS[t].name + ' 숙련', desc: '공격력 +{p}%' });
+  }
+  // 지도 위 자리 (가운데에서 나선으로 깊어짐, test/layout.js 힘 배치로 구해 둔 값)
+  const MAP = {'d0':[0,0], 'd1':[167,-101], 'd2':[263,75], 'd3':[236,274], 'd4':[74,392], 'd5':[-129,416], 'd6':[-327,345], 'd7':[-502,218], 'd8':[-621,49], 'd9':[-648,-142], 'heart':[-547,-291], 'dmg1':[-33,134], 'time1':[-99,-99], 'rad1':[-167,172], 'ore1':[-237,-99], 'spd1':[133,-237], 'rocks1':[267,-198], 'crit1':[72,-361], 'spawn1':[329,-322], 'mine1':[420,-426], 'dmg2':[323,-51], 'time2':[401,65], 'gem1':[428,-140], 'xp1':[532,20], 'critD1':[358,209], 'rad2':[353,349], 'sand1':[496,204], 'boom1':[484,392], 'ore2':[210,422], 'spd2':[116,525], 'luck1':[316,510], 'mine2':[193,640], 'dmg3':[-23,505], 'chain1':[-153,554], 'rocks2':[0,642], 'time3':[-171,691], 'crit2':[-260,465], 'critD2':[-398,468], 'spawn2':[-317,592], 'boom2':[-501,561], 'dmg4':[-601,321], 'rad3':[-637,188], 'ore3':[-692,426], 'mine3':[-757,257], 'spd3':[-749,106], 'chain2':[-734,-32], 'sand2':[-885,133], 'luck2':[-872,-38], 'dmg5':[-783,-175], 'time4':[-686,-276], 'xp2':[-909,-233], 'critD3':[-742,-403], 'm0':[-132,36], 'm1':[35,-137], 'm2':[134,32], 'm3':[153,168], 'm4':[49,259], 'm5':[-88,287], 'm6':[-312,209], 'm7':[-466,348], 'm8':[-487,22], 'm9':[-512,-156]};
+  for (const n of NODES) { const q = MAP[n.id] || [0, 0]; n.x = q[0]; n.y = q[1]; }
+  const NODE = Object.fromEntries(NODES.map((n) => [n.id, n]));
+  // 선행 노드: 기둥은 바로 위 기둥, 옆 가지는 안쪽 이웃(없으면 같은 줄 기둥)
+  for (const n of NODES) {
+    if (n.col === 0) n.req = n.row ? [n.row === 10 ? 'd9' : 'd' + (n.row - 1)] : [];
+    else if (n.k === 'mast') n.req = ['d' + n.row];
+    else {
+      const inner = NODES.find((m) => m.row === n.row && m.col === n.col - Math.sign(n.col));
+      n.req = [inner ? inner.id : 'd' + n.row];
+    }
+  }
+
+  // ── 곡괭이 ───────────────────────────────────────
+  const PICKS = [
+    { id: 'p0', name: '낡은 나무 곡괭이', dmg: 3, swing: 0.75, cost: {}, fx: null },
+    { id: 'p1', name: '돌 곡괭이', dmg: 6, swing: 0.75, cost: { 0: 20 }, fx: null },
+    { id: 'p2', name: '구리 곡괭이', dmg: 14, swing: 0.75, cost: { 1: 40, 0: 80 }, fx: null },
+    { id: 'p3', name: '철 곡괭이', dmg: 32, swing: 0.75, cost: { 2: 50, 1: 100 }, fx: null },
+    { id: 'p4', name: '은 곡괭이', dmg: 75, swing: 0.75, cost: { 3: 55, 2: 120 }, fx: ['crit', 0.05] },
+    { id: 'p5', name: '금 곡괭이', dmg: 175, swing: 0.8, cost: { 4: 60, 3: 130 }, fx: ['ore', 0.25] },
+    { id: 'p6', name: '수정 곡괭이', dmg: 450, swing: 0.75, cost: { 5: 65, 4: 140 }, fx: ['rad', 10] },
+    { id: 'p7', name: '미스릴 곡괭이', dmg: 1150, swing: 0.6, cost: { 6: 70, 5: 150 }, fx: ['spd', 0.1] },
+    { id: 'p8', name: '아다만트 곡괭이', dmg: 3000, swing: 0.7, cost: { 7: 75, 6: 160 }, fx: ['critD', 0.5] },
+    { id: 'p9', name: '흑요석 곡괭이', dmg: 7800, swing: 0.65, cost: { 8: 80, 7: 170 }, fx: ['boom', 0.15] },
+    { id: 'p10', name: '별철 곡괭이', dmg: 20000, swing: 0.55, cost: { 9: 90, 8: 180 }, fx: ['chain', 0.2] },
+  ];
+  const PICK = Object.fromEntries(PICKS.map((p) => [p.id, p]));
+  const pickUpCost = (lv) => Math.round(3 * Math.pow(1.6, lv)); // 보석
+  const PICK_UP_MAX = 10, PICK_UP_V = 0.15;
+
+  // ── 재능 카드 ─────────────────────────────────────
+  const RAR = [
+    { name: '보통', w: 62, mul: 1 },
+    { name: '희귀', w: 30, mul: 2 },
+    { name: '전설', w: 8, mul: 3.5 },
+  ];
+  const CARDS = [
+    { id: 'dmg', name: '강철 팔뚝', k: 'dmg', v: 0.12, d: '공격력 +{p}%' },
+    { id: 'spd', name: '날렵한 손목', k: 'spd', v: 0.04, d: '휘두르는 간격 −{p}%' },
+    { id: 'rad', name: '넓은 시야', k: 'rad', v: 4, d: '채굴 범위 +{n}' },
+    { id: 'time', name: '두둑한 도시락', k: 'time', v: 0.5, d: '채굴 시간 +{n}초' },
+    { id: 'ore', name: '풍년', k: 'ore', v: 0.1, d: '광석 +{p}%' },
+    { id: 'crit', name: '매의 눈', k: 'crit', v: 0.025, d: '치명타 확률 +{p}%' },
+    { id: 'critD', name: '내려찍기', k: 'critD', v: 0.25, d: '치명타 피해 +{p}%' },
+    { id: 'gem', name: '보석상의 감', k: 'gem', v: 0.004, d: '보석 나올 확률 +{p}%p' },
+    { id: 'chain', name: '정전기', k: 'chain', v: 0.03, d: '때릴 때 번개 확률 +{p}%' },
+    { id: 'boom', name: '불씨', k: 'boom', v: 0.03, d: '깨질 때 폭발 확률 +{p}%' },
+    { id: 'sand', name: '모래시계', k: 'sand', v: 0.02, d: '깰 때 +0.5초 확률 +{p}%' },
+    { id: 'rocks', name: '광맥 증식', k: 'rocks', v: 3, d: '바위 최대 수 +{n}' },
+  ];
+  const CARD = Object.fromEntries(CARDS.map((c) => [c.id, c]));
+  const CARD_HP = 0.04; // 카드 한 장마다 바위 체력 +4%
+
+  // ── 숫자 표시 ─────────────────────────────────────
+  function fmt(n) {
+    n = Math.floor(n);
+    if (n < 10000) return n.toLocaleString('ko-KR');
+    const u = [[1e12, '조'], [1e8, '억'], [1e4, '만']];
+    for (const [d, s] of u) if (n >= d) {
+      const x = n / d;
+      return (x >= 100 ? Math.floor(x) : x >= 10 ? Math.floor(x * 10) / 10 : Math.floor(x * 100) / 100) + s;
+    }
+    return String(n);
+  }
+  function fillDesc(d, v) {
+    return d.replace('{p}', +(v * 100).toFixed(1)).replace('{n}', +v.toFixed(1));
+  }
+  function fmtTime(ms) {
+    const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
+    const p = (n) => String(n).padStart(2, '0');
+    return (h ? h + ':' + p(m) : m) + ':' + p(x);
+  }
+
+  // ── 난수 ─────────────────────────────────────────
+  function rng(seed) {
+    let a = seed >>> 0 || 1;
+    return function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ── 상태 ─────────────────────────────────────────
+  function newState(now) {
+    return {
+      v: VERSION,
+      ores: TIERS.map(() => 0), gems: 0,
+      xp: 0, level: 1, pts: 0, cards: 0, talents: {}, offer: null,
+      skills: { d0: 1 },
+      picks: { own: ['p0'], eq: 'p0', up: {} },
+      heartHp: HEART.hp, heartOpen: false, cleared: false,
+      startAt: now || Date.now(), clearAt: null, lastSeen: now || Date.now(),
+      sessions: 0, best: 0, broken: 0, total: TIERS.map(() => 0),
+      run: null, // 랭킹용 {id, token}
+    };
+  }
+  const lvOf = (s, id) => (s.skills[id] | 0);
+  const depthOf = (s) => { let d = 0; for (let t = 0; t < TIERS.length; t++) if (lvOf(s, 'd' + t)) d = t; return d; };
+
+  function stats(s) {
+    const st = { dmgMul: 1, spdMul: 1, rad: 58, time: 12, rocks: 16, spawn: 3, oreMul: 1, crit: 0.03, critD: 2,
+      gem: 0.008, xpMul: 1, chain: 0, boom: 0, sand: 0, luck: 0, mine: 0, mast: 0 };
+    function add(k, x) {
+      switch (k) {
+        case 'dmg': st.dmgMul *= 1 + x; break;
+        case 'spd': st.spdMul *= 1 - x; break;
+        case 'rad': st.rad += x; break;
+        case 'time': st.time += x; break;
+        case 'rocks': st.rocks += x; break;
+        case 'spawn': st.spawn *= 1 + x; break;
+        case 'ore': st.oreMul *= 1 + x; break;
+        case 'crit': st.crit += x; break;
+        case 'critD': st.critD += x; break;
+        case 'gem': st.gem += x; break;
+        case 'xp': st.xpMul *= 1 + x; break;
+        case 'chain': st.chain += x; break;
+        case 'boom': st.boom += x; break;
+        case 'sand': st.sand += x; break;
+        case 'luck': st.luck += x; break;
+        case 'mine': st.mine += x; break;
+        case 'mast': st.mast += x; break;
+      }
+    }
+    for (const n of NODES) {
+      const l = lvOf(s, n.id);
+      if (l && n.k !== 'depth' && n.k !== 'heart') add(n.k, n.v * l);
+    }
+    for (const id in s.talents) {
+      const c = CARD[id.split(':')[0]]; if (!c) continue;
+      const mul = RAR[+id.split(':')[1] || 0].mul;
+      add(c.k, c.v * mul * s.talents[id]);
+    }
+    const p = PICK[s.picks.eq] || PICKS[0];
+    if (p.fx) add(p.fx[0], p.fx[1]);
+    st.dmgMul *= 1 + st.mast;
+    const up = s.picks.up[p.id] | 0;
+    st.pick = p;
+    st.dmg = p.dmg * st.dmgMul * (1 + PICK_UP_V * up);
+    st.swing = Math.max(0.12, p.swing * st.spdMul);
+    st.crit = Math.min(0.9, st.crit);
+    st.chain = Math.min(0.8, st.chain);
+    st.boom = Math.min(0.8, st.boom);
+    st.sand = Math.min(0.5, st.sand);
+    st.depth = depthOf(s);
+    // 바위가 많아질수록 채굴장이 넓어짐(화면에선 멀리서 보게 돼 바위가 작아 보임). 넓이보다 바위가 더 빨리 늘어 점점 빽빽해짐
+    st.rocks = Math.round(st.rocks);
+    st.field = Math.max(1, Math.min(2.3, Math.pow(st.rocks / 16, 0.42)));
+    st.W = Math.round(W * st.field); st.H = Math.round(H * st.field);
+    st.spawn *= Math.pow(st.rocks / 16, 0.85);
+    st.hpMul = 1 + CARD_HP * s.cards;
+    st.weights = TIERS.map((_, t) => (t <= st.depth ? Math.pow(1.6 + st.luck, t - st.depth) : 0));
+    return st;
+  }
+
+  // ── 값과 살 수 있는지 ─────────────────────────────
+  function nodeCost(n, lv) { // lv = 지금 레벨 (다음 레벨을 살 때의 값)
+    const c = {};
+    c[n.ct] = Math.round(n.b * Math.pow(n.g, lv));
+    if (n.extra) for (const t in n.extra) c[t] = n.extra[t];
+    return c;
+  }
+  function canPay(s, cost) { for (const t in cost) if ((s.ores[t] || 0) < cost[t]) return false; return true; }
+  function pay(s, cost) { for (const t in cost) s.ores[t] -= cost[t]; }
+  function nodeState(s, id) {
+    const n = NODE[id], lv = lvOf(s, id);
+    if (lv >= n.max) return 'max';
+    if (!n.req.every((r) => lvOf(s, r) > 0) || (n.after && !lvOf(s, n.after))) return 'locked';
+    return canPay(s, nodeCost(n, lv)) ? 'buy' : 'open';
+  }
+  function buyNode(s, id) {
+    if (nodeState(s, id) !== 'buy') return false;
+    const n = NODE[id];
+    pay(s, nodeCost(n, lvOf(s, id)));
+    s.skills[id] = lvOf(s, id) + 1;
+    if (n.k === 'heart') s.heartOpen = true;
+    return true;
+  }
+  function pickState(s, id) {
+    if (s.picks.own.includes(id)) return 'own';
+    const p = PICK[id], i = PICKS.indexOf(p);
+    if (i > 0 && !s.picks.own.includes(PICKS[i - 1].id)) return 'locked';
+    const maxTier = Math.max(...Object.keys(p.cost).map(Number), 0);
+    if (maxTier > depthOf(s)) return 'locked';
+    return canPay(s, p.cost) ? 'buy' : 'open';
+  }
+  function craft(s, id) {
+    if (pickState(s, id) !== 'buy') return false;
+    pay(s, PICK[id].cost);
+    s.picks.own.push(id);
+    s.picks.eq = id;
+    return true;
+  }
+  function upgradePick(s, id) {
+    if (!s.picks.own.includes(id)) return false;
+    const lv = s.picks.up[id] | 0;
+    if (lv >= PICK_UP_MAX) return false;
+    const c = pickUpCost(lv);
+    if (s.gems < c) return false;
+    s.gems -= c;
+    s.picks.up[id] = lv + 1;
+    return true;
+  }
+
+  // ── 레벨과 재능 카드 ─────────────────────────────
+  const xpNeed = (lv) => Math.round(25 * Math.pow(1.38, lv - 1));
+  function addXp(s, x) {
+    s.xp += x;
+    let ups = 0;
+    while (s.xp >= xpNeed(s.level)) { s.xp -= xpNeed(s.level); s.level += 1; s.pts += 1; ups++; }
+    return ups;
+  }
+  function drawOffer(s, r) {
+    r = r || Math.random;
+    const pool = CARDS.slice();
+    const out = [];
+    while (out.length < 3 && pool.length) {
+      const c = pool.splice(Math.floor(r() * pool.length), 1)[0];
+      let x = r() * 100, rar = 0;
+      for (let i = 0; i < RAR.length; i++) { if (x < RAR[i].w) { rar = i; break; } x -= RAR[i].w; }
+      out.push(c.id + ':' + rar);
+    }
+    return out;
+  }
+  function openOffer(s, r) {
+    if (s.pts <= 0) return null;
+    if (!s.offer) s.offer = drawOffer(s, r);
+    return s.offer;
+  }
+  function pickCard(s, i) {
+    if (!s.offer || !s.offer[i] || s.pts <= 0) return false;
+    const id = s.offer[i];
+    s.talents[id] = (s.talents[id] | 0) + 1;
+    s.cards += 1; s.pts -= 1; s.offer = null;
+    return true;
+  }
+  function cardInfo(id) {
+    const [cid, ri] = id.split(':');
+    const c = CARD[cid], rar = +ri || 0;
+    return { ...c, rar, rarName: RAR[rar].name, text: fillDesc(c.d, c.v * RAR[rar].mul) };
+  }
+
+  // ── 자동 광산 ────────────────────────────────────
+  // 내 공격력의 일부로 보이지 않는 곳에서 캠 (화면에 있을 때와 꺼 둔 동안 모두, 꺼 둔 동안은 8시간까지)
+  function mineRates(s, st) {
+    st = st || stats(s);
+    if (!st.mine) return TIERS.map(() => 0);
+    const dps = (st.dmg / st.swing) * 2.2 * 0.035 * st.mine;
+    const wsum = st.weights.reduce((a, b) => a + b, 0);
+    return TIERS.map((T, t) => (st.weights[t] ? (dps * st.weights[t] / wsum) / (T.hp * st.hpMul) * st.oreMul : 0));
+  }
+  function idle(s, sec, carry) {
+    const rates = mineRates(s);
+    carry = carry || (s._carry = s._carry || TIERS.map(() => 0));
+    const got = TIERS.map(() => 0);
+    for (let t = 0; t < TIERS.length; t++) {
+      carry[t] = (carry[t] || 0) + rates[t] * sec;
+      const n = Math.floor(carry[t]);
+      if (n > 0) { carry[t] -= n; s.ores[t] += n; s.total[t] += n; got[t] = n; }
+    }
+    return got;
+  }
+
+  // ── 채굴 한 판 ───────────────────────────────────
+  function newSession(s, r) {
+    r = r || Math.random;
+    const st = stats(s);
+    const sess = { st, r, t: 0, timeLeft: st.time, rocks: [], nid: 1, spawnAcc: 0, swingT: st.swing * 0.5,
+      gain: TIERS.map(() => 0), gems: 0, xp: 0, score: 0, broken: 0, crits: 0, over: false, ev: [], sandBonus: 0, heartHit: 0 };
+    if (s.heartOpen && !s.cleared) {
+      sess.rocks.push({ id: sess.nid++, heart: true, x: st.W / 2, y: st.H / 2, r: HEART.r * Math.sqrt(st.field), tier: 9, hp: s.heartHp, max: HEART.hp, born: 0 });
+    }
+    for (let i = 0; i < st.rocks; i++) spawnRock(s, sess, i * Math.min(0.035, 1.2 / st.rocks));
+    return sess;
+  }
+  function pickTier(st, r) {
+    const w = st.weights, sum = w.reduce((a, b) => a + b, 0);
+    let x = r() * sum;
+    for (let t = 0; t < w.length; t++) { if (x < w[t]) return t; x -= w[t]; }
+    return st.depth;
+  }
+  function spawnRock(s, sess, delay) {
+    const st = sess.st, r = sess.r;
+    const tier = pickTier(st, r), T = TIERS[tier];
+    const rad = T.r * (0.9 + r() * 0.25);
+    for (let tries = 0; tries < 14; tries++) {
+      const x = 50 + r() * (st.W - 100), y = 50 + r() * (st.H - 100);
+      let ok = true;
+      for (const o of sess.rocks) {
+        const dx = o.x - x, dy = o.y - y, md = o.r + rad + 6;
+        if (dx * dx + dy * dy < md * md) { ok = false; break; }
+      }
+      if (ok || tries === 13) {
+        const hp = T.hp * st.hpMul;
+        const rock = { id: sess.nid++, x, y, r: rad, tier, hp, max: hp, born: sess.t + (delay || 0), seed: Math.floor(r() * 1e9) };
+        sess.rocks.push(rock);
+        return rock;
+      }
+    }
+    return null;
+  }
+  function liveRocks(sess) { return sess.rocks.filter((k) => !k.dead && k.born <= sess.t); }
+  function hit(s, sess, rock, dmg, kind) {
+    if (rock.dead) return;
+    const st = sess.st, r = sess.r;
+    let crit = false;
+    if (kind === 'swing' && r() < st.crit) { dmg *= st.critD; crit = true; sess.crits++; }
+    rock.hp -= dmg;
+    sess.ev.push({ e: 'hit', id: rock.id, x: rock.x, y: rock.y, dmg, crit, kind });
+    if (rock.heart) {
+      sess.heartHit += dmg;
+      s.heartHp = Math.max(0, rock.hp);
+      if (rock.hp <= 0) {
+        rock.dead = true;
+        s.cleared = true; s.clearAt = s.clearAt || Date.now();
+        sess.ev.push({ e: 'heart', x: rock.x, y: rock.y });
+        sess.score += 1000000;
+      }
+      return;
+    }
+    if (rock.hp <= 0) breakRock(s, sess, rock);
+  }
+  function breakRock(s, sess, rock) {
+    const st = sess.st, r = sess.r, T = TIERS[rock.tier];
+    rock.dead = true;
+    let n = Math.floor(st.oreMul);
+    if (r() < st.oreMul - n) n++;
+    s.ores[rock.tier] += n; s.total[rock.tier] += n; sess.gain[rock.tier] += n;
+    sess.score += n * T.val;
+    sess.broken++; s.broken++;
+    const xp = (rock.tier + 1) * st.xpMul;
+    sess.xp += xp;
+    const ups = addXp(s, xp);
+    let gem = false;
+    if (r() < st.gem) { s.gems++; sess.gems++; gem = true; }
+    sess.ev.push({ e: 'break', id: rock.id, x: rock.x, y: rock.y, tier: rock.tier, n, gem, up: ups });
+    if (st.sand && sess.sandBonus < st.time * 0.5 && r() < st.sand) { sess.timeLeft += 0.5; sess.sandBonus += 0.5; sess.ev.push({ e: 'sand', x: rock.x, y: rock.y }); }
+    if (st.boom && r() < st.boom) {
+      sess.ev.push({ e: 'boom', x: rock.x, y: rock.y });
+      for (const o of liveRocks(sess)) {
+        if (o === rock) continue;
+        const dx = o.x - rock.x, dy = o.y - rock.y;
+        if (dx * dx + dy * dy < 120 * 120) hit(s, sess, o, st.dmg * 2.5, 'boom');
+      }
+    }
+  }
+  // cursor: {x, y} 채굴장 좌표, 없으면 null(채굴장 밖)
+  function step(s, sess, dt, cursor) {
+    if (sess.over) return;
+    sess.t += dt;
+    sess.timeLeft -= dt;
+    const st = sess.st;
+    // 바위 생기기
+    const normal = sess.rocks.filter((k) => !k.dead && !k.heart).length;
+    if (normal < st.rocks) {
+      sess.spawnAcc += dt * st.spawn;
+      while (sess.spawnAcc >= 1) {
+        sess.spawnAcc -= 1;
+        if (sess.rocks.filter((k) => !k.dead && !k.heart).length < st.rocks) spawnRock(s, sess, 0);
+      }
+    } else sess.spawnAcc = Math.min(sess.spawnAcc, 1);
+    // 휘두르기
+    sess.swingT -= dt;
+    if (sess.swingT <= 0) {
+      sess.swingT += st.swing;
+      if (cursor) {
+        const hits = [];
+        for (const k of liveRocks(sess)) {
+          const dx = k.x - cursor.x, dy = k.y - cursor.y, rr = st.rad + k.r * 0.6;
+          if (dx * dx + dy * dy <= rr * rr) hits.push(k);
+        }
+        sess.ev.push({ e: 'swing', x: cursor.x, y: cursor.y, n: hits.length });
+        for (const k of hits) {
+          hit(s, sess, k, st.dmg, 'swing');
+          if (st.chain && sess.r() < st.chain) {
+            const others = liveRocks(sess).filter((o) => o !== k);
+            if (others.length) {
+              const o = others[Math.floor(sess.r() * others.length)];
+              sess.ev.push({ e: 'zap', x1: k.x, y1: k.y, x2: o.x, y2: o.y });
+              hit(s, sess, o, st.dmg * 1.5, 'zap');
+            }
+          }
+        }
+      }
+    }
+    sess.rocks = sess.rocks.filter((k) => !k.dead);
+    if (sess.timeLeft <= 0) { sess.timeLeft = 0; sess.over = true; }
+  }
+  function endSession(s, sess) {
+    s.sessions += 1;
+    if (sess.score > s.best) s.best = sess.score;
+    return { gain: sess.gain, gems: sess.gems, xp: sess.xp, score: sess.score, broken: sess.broken, crits: sess.crits, heartHit: sess.heartHit, best: s.best === sess.score };
+  }
+
+  // 저장한 상태 고치기(예전 버전·빠진 칸)
+  function fix(s) {
+    const d = newState();
+    if (!s || typeof s !== 'object') return d;
+    for (const k in d) if (s[k] === undefined) s[k] = d[k];
+    while (s.ores.length < TIERS.length) s.ores.push(0);
+    while (s.total.length < TIERS.length) s.total.push(0);
+    if (!s.skills.d0) s.skills.d0 = 1;
+    return s;
+  }
+
+  const MG = { VERSION, W, H, TIERS, HEART, NODES, NODE, PICKS, PICK, PICK_UP_MAX, PICK_UP_V, pickUpCost, CARDS, RAR, CARD_HP,
+    fmt, fmtTime, fillDesc, rng, newState, fix, stats, depthOf, lvOf, nodeCost, nodeState, buyNode, canPay,
+    pickState, craft, upgradePick, xpNeed, addXp, openOffer, pickCard, cardInfo, mineRates, idle,
+    newSession, step, endSession, liveRocks };
+  if (typeof module !== 'undefined' && module.exports) module.exports = MG;
+  else root.MG = MG;
+})(typeof self !== 'undefined' ? self : this);
+
+</script>
+<script>
+'use strict';
+const SERVER = "https://mining.2juwon.workers.dev";
+const PAGES_URL = 'https://2juwon.github.io/mining/classic/';
+const SAVE_KEY = 'hanpan-mine-v1';
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const T = MG.TIERS;
+
+// ── 그림 조각 (SVG) ──────────────────────────────
+function oreSvg(t) {
+  const c = T[t];
+  return `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.5l7 4.2v8.6l-7 4.2-7-4.2V5.7z" fill="${c.rock}" stroke="#000" stroke-opacity=".5"/><path d="M10 4.5l4.3 2.6v5.8L10 15.5l-4.3-2.6V7.1z" fill="${c.vein}"/><path d="M10 4.5l4.3 2.6L10 9.7 5.7 7.1z" fill="#fff" fill-opacity=".35"/></svg>`;
+}
+const gemSvg = `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h10l4 5-9 10L1 8z" fill="#e8508a"/><path d="M5 3h10l4 5H1z" fill="#ff8fbd"/><path d="M7 8l3 10 3-10z" fill="#fff" fill-opacity=".25"/></svg>`;
+const ICON = {
+  dmg: '<path d="M4 9c5-4 11-4 16 0" stroke="#c9cfd6" stroke-width="2.4"/><path d="M12 7v14" stroke="#b07a46" stroke-width="2.6"/>',
+  spd: '<path d="M3 8h11M5 12h13M3 16h9" stroke="#8fe0ff" stroke-width="2.2"/><path d="M17 5l4 3-4 3" stroke="#8fe0ff" stroke-width="2"/>',
+  rad: '<circle cx="12" cy="12" r="8.5" stroke="#f2a541" stroke-width="2" stroke-dasharray="3 2.5"/><circle cx="12" cy="12" r="2.5" fill="#f2a541"/>',
+  time: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" stroke="#f1e6d2" stroke-width="1.8"/><path d="M10 18h4" stroke="#f2a541" stroke-width="2.4"/>',
+  rocks: '<path d="M3 19l3-6 4 1 2 5z" fill="#8a837a"/><path d="M10 19l2-8 5-2 4 10z" fill="#6f6a64"/><path d="M6 11l2-5 4 1-1 4z" fill="#a39b90"/>',
+  spawn: '<path d="M12 21V11" stroke="#9bd17f" stroke-width="2.2"/><path d="M12 13c-5 0-7-3-7-7 5 0 7 3 7 7zM12 11c0-4 2-7 7-7 0 4-2 7-7 7z" fill="#9bd17f"/>',
+  ore: '<path d="M12 3l7 4.5v9L12 21l-7-4.5v-9z" fill="#ffc94a"/><path d="M12 3l7 4.5L12 12 5 7.5z" fill="#ffe39a"/>',
+  crit: '<path d="M12 2l2.6 6.5L21 9l-5 4.4L17.6 21 12 17l-5.6 4L8 13.4 3 9l6.4-.5z" fill="#ff6a3d"/>',
+  critD: '<rect x="5" y="4" width="14" height="7" rx="1.5" fill="#c9cfd6"/><path d="M12 11v10" stroke="#b07a46" stroke-width="2.8"/>',
+  gem: '<path d="M6 4h12l4 6-10 11L2 10z" fill="#e8508a"/><path d="M6 4h12l4 6H2z" fill="#ff8fbd"/>',
+  xp: '<path d="M4 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-7v15a2 2 0 0 1 2-2h5z" fill="#d8c3a0"/><path d="M13 7v13" stroke="#6b5640" stroke-width="1.4"/>',
+  chain: '<path d="M14 2L5 13h6l-2 9 10-12h-6l2-8z" fill="#9fd8ff" stroke="#e6f6ff" stroke-width=".8"/>',
+  boom: '<circle cx="11" cy="14" r="7" fill="#3b3330"/><path d="M15 8l3-3" stroke="#b07a46" stroke-width="2"/><path d="M19 3l1.5 1.5M21 6h-2M17 2v2" stroke="#ff9a3d" stroke-width="1.6"/><circle cx="8.5" cy="11.5" r="2" fill="#fff" fill-opacity=".2"/>',
+  sand: '<path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" stroke="#e6cf8a" stroke-width="1.8"/><circle cx="19" cy="5" r="2" fill="#fff3b0"/>',
+  luck: '<path d="M12 2l3 7h-6zM9 9h6v4a3 3 0 0 1-6 0z" fill="#f2a541"/><circle cx="12" cy="12" r="6" fill="#f2a541" fill-opacity=".2"/><path d="M12 16v6M9 22h6" stroke="#8a6a44" stroke-width="2"/>',
+  mine: '<path d="M3 9h18l-2 8H5z" fill="#7a5a3c"/><path d="M6 9l2-4 4 2 3-3 3 5" fill="#ffc94a"/><circle cx="8" cy="19" r="2" fill="#c9cfd6"/><circle cx="16" cy="19" r="2" fill="#c9cfd6"/>',
+  depth: '<path d="M8 3v18M16 3v18M8 7h8M8 12h8M8 17h8" stroke="#c9a77a" stroke-width="2"/>',
+  heart: '<path d="M12 21l-8-8a5 5 0 0 1 8-6 5 5 0 0 1 8 6z" fill="#ff4f5e"/><path d="M12 9l3 4-3 5-3-5z" fill="#ffd0a0"/>',
+};
+const icon = (k, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k] || ''}</svg>`;
+function pickSvg(p, size) {
+  const i = MG.PICKS.indexOf(p);
+  const head = i === 0 ? '#9c7a55' : T[Math.max(0, i - 1)].vein;
+  const dark = i === 0 ? '#5c4630' : T[Math.max(0, i - 1)].rock;
+  return `<svg class="art" viewBox="0 0 64 64" aria-hidden="true"><path d="M33 22L18 56" stroke="#3a2614" stroke-width="7" stroke-linecap="round"/><path d="M33 22L18 56" stroke="#9a6a3d" stroke-width="4.5" stroke-linecap="round"/><path d="M8 20C20 6 44 4 58 16L50 20C42 14 26 13 14 23z" fill="${head}" stroke="${dark}" stroke-width="2.5" stroke-linejoin="round"/><path d="M14 18C24 10 40 9 50 14" stroke="#fff" stroke-opacity=".45" stroke-width="2" fill="none" stroke-linecap="round"/><rect x="28" y="14" width="10" height="9" rx="2" transform="rotate(20 33 18)" fill="${dark}"/></svg>`;
+}
+const costHtml = (cost, s) => Object.keys(cost).map((t) => `<span class="${s && s.ores[t] < cost[t] ? 'short' : ''}">${oreSvg(+t)}${MG.fmt(cost[t])}</span>`).join('');
+
+// ── 저장 ─────────────────────────────────────────
+let S = null;
+// 테스트 모드: 진짜 저장과 따로 노는 연습판 (랭킹에 안 올라감)
+const TEST = { on: false, speed: 1, oneHit: false, endless: false, noFog: false };
+function load() {
+  try { const raw = localStorage.getItem(SAVE_KEY); if (raw) return MG.fix(JSON.parse(raw)); } catch (e) { /* 저장 안 됨 */ }
+  return null;
+}
+function save() {
+  if (!S) return;
+  S.lastSeen = Date.now();
+  try { localStorage.setItem(TEST.on ? SAVE_KEY + ':test' : SAVE_KEY, JSON.stringify(S)); } catch (e) { /* 저장 안 됨 */ }
+}
+let prefs = { sound: true };
+try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem(SAVE_KEY + ':prefs') || '{}')); } catch (e) { /* 기본값 */ }
+const savePrefs = () => { try { localStorage.setItem(SAVE_KEY + ':prefs', JSON.stringify(prefs)); } catch (e) { /* 저장 안 됨 */ } };
+
+// ── 서버 ─────────────────────────────────────────
+async function api(path, body) {
+  if (!SERVER) throw new Error('서버 없음');
+  const r = await fetch(SERVER + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok && !j.error) j.error = '서버에 연결하지 못했어요';
+  return j;
+}
+async function startRun() {
+  if (!SERVER || TEST.on) return;
+  try {
+    const r = await api('/api/run/start', {});
+    if (r.run) { S.run = { id: r.run, token: r.token, at: r.at }; S.startAt = Date.now(); save(); }
+    else S.runError = r.error;
+  } catch (e) { S.runError = '서버에 연결하지 못했어요'; }
+  if (tab === 'rank') renderView();
+}
+async function reportClear() {
+  if (TEST.on || !S.run || S.runResult && S.runResult.ms) return;
+  try {
+    const r = await api('/api/run/clear', { run: S.run.id, token: S.run.token, sessions: S.sessions, level: S.level, broken: S.broken, clientMs: (S.clearAt || Date.now()) - S.startAt });
+    S.runResult = r.error ? { error: r.error, ms: r.ms } : { ms: r.ms, place: r.place, named: r.named };
+  } catch (e) { S.runResult = { error: '서버에 연결하지 못했어요. 랭킹 탭에서 다시 보낼 수 있어요', retry: true }; }
+  save();
+}
+
+// ── 소리 (WebAudio로 직접 만듦) ───────────────────
+let AC = null, master = null;
+function audio() {
+  if (!prefs.sound) return null;
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.gain.value = 0.35; master.connect(AC.destination); } catch (e) { return null; }
+  }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+let noiseBuf = null;
+function noise(ac) {
+  if (noiseBuf) return noiseBuf;
+  noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  return noiseBuf;
+}
+const lastSnd = {};
+function sfx(kind, x) {
+  const ac = audio(); if (!ac) return;
+  const now = ac.currentTime;
+  if (lastSnd[kind] && now - lastSnd[kind] < (kind === 'hit' ? 0.03 : 0.05)) return;
+  lastSnd[kind] = now;
+  const env = (g, a, d, peak) => { g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(peak, now + a); g.gain.exponentialRampToValueAtTime(0.0001, now + a + d); };
+  if (kind === 'hit' || kind === 'crit') {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle'; o.frequency.value = (kind === 'crit' ? 1500 : 900) + (x || 0) * 70 + Math.random() * 80;
+    env(g, 0.002, kind === 'crit' ? 0.18 : 0.08, kind === 'crit' ? 0.5 : 0.25);
+    o.connect(g).connect(master); o.start(now); o.stop(now + 0.25);
+  } else if (kind === 'break' || kind === 'boom') {
+    const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    n.buffer = noise(ac); f.type = 'lowpass'; f.frequency.value = kind === 'boom' ? 500 : 1400 + (x || 0) * 120;
+    env(g, 0.004, kind === 'boom' ? 0.45 : 0.16, kind === 'boom' ? 0.9 : 0.45);
+    n.connect(f).connect(g).connect(master); n.start(now); n.stop(now + 0.5);
+  } else if (kind === 'zap') {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(2400, now); o.frequency.exponentialRampToValueAtTime(300, now + 0.12);
+    env(g, 0.002, 0.12, 0.12); o.connect(g).connect(master); o.start(now); o.stop(now + 0.2);
+  } else {
+    const notes = { up: [523, 659, 784, 1047], buy: [784, 1175], end: [392, 523, 659], tick: [1200], clear: [523, 659, 784, 1047, 1319, 1568], gem: [1319, 1760], start: [330, 494] }[kind] || [600];
+    notes.forEach((f, i) => {
+      const o = ac.createOscillator(), g = ac.createGain(), t0 = now + i * (kind === 'clear' ? 0.11 : 0.07);
+      o.type = kind === 'tick' ? 'square' : 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(kind === 'tick' ? 0.08 : 0.3, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + (kind === 'clear' ? 0.5 : 0.22));
+      o.connect(g).connect(master); o.start(t0); o.stop(t0 + 0.6);
+    });
+  }
+}
+function drawSoundBtn() {
+  $('#soundBtn').innerHTML = prefs.sound
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>';
+}
+
+// ── 위 띠 ────────────────────────────────────────
+let bagEls = [];
+function buildBag() {
+  const bag = $('#bag'); bag.innerHTML = ''; bagEls = [];
+  T.forEach((c, t) => { const e = el('div', 'ore num'); e.title = c.name; bag.append(e); bagEls.push(e); });
+  const g = el('div', 'ore num'); g.title = '보석 — 곡괭이 강화에 써요'; bag.append(g); bagEls.push(g);
+}
+const shown = { ores: [], gems: -1 };
+function drawTop() {
+  const d = MG.depthOf(S);
+  T.forEach((c, t) => {
+    const e = bagEls[t], lock = t > d && !S.total[t];
+    const v = S.ores[t];
+    if (shown.ores[t] !== v || e.dataset.lock !== String(lock)) {
+      if (shown.ores[t] != null && v > shown.ores[t]) { e.classList.add('bump'); setTimeout(() => e.classList.remove('bump'), 140); }
+      e.innerHTML = lock ? `${oreSvg(t)}<b>?</b>` : `${oreSvg(t)}<b>${MG.fmt(v)}</b>`;
+      e.classList.toggle('lock', lock); e.dataset.lock = String(lock); shown.ores[t] = v;
+    }
+  });
+  if (shown.gems !== S.gems) { bagEls[T.length].innerHTML = `${gemSvg}<b>${MG.fmt(S.gems)}</b>`; shown.gems = S.gems; }
+  $('#lvNum').textContent = S.level;
+  const need = MG.xpNeed(S.level);
+  $('#xpTxt').textContent = `${MG.fmt(S.xp)} / ${MG.fmt(need)}`;
+  $('#xpArc').setAttribute('stroke-dashoffset', String(107 * (1 - Math.min(1, S.xp / need))));
+  drawClock();
+}
+function runMs() { return S.cleared ? (S.runResult && S.runResult.ms) || (S.clearAt - S.startAt) : Date.now() - S.startAt; }
+function drawClock() { $('#clock').innerHTML = `${MG.fmtTime(runMs())}<small>${S.cleared ? '클리어 기록' : '걸린 시간'}</small>`; }
+
+// ── 캠프 화면 ────────────────────────────────────
+let tab = 'tree';
+const tip = $('#tip');
+function showTip(html, x, y) {
+  tip.innerHTML = html; tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let left = x + 16, top = y + 16;
+  if (left + r.width > innerWidth - 8) left = x - r.width - 16;
+  if (top + r.height > innerHeight - 8) top = y - r.height - 16;
+  tip.style.left = Math.max(8, left) + 'px'; tip.style.top = Math.max(8, top) + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  hideTip();
+  renderView();
+  $('#view').scrollTop = 0;
+}
+function drawDots() {
+  const tb = document.querySelector('[data-tab="talent"]');
+  let d = tb.querySelector('.dot');
+  if (S.pts > 0) { if (!d) { d = el('span', 'dot'); tb.append(d); } d.textContent = S.pts; } else if (d) d.remove();
+  const tt = document.querySelector('[data-tab="tree"]');
+  const can = MG.NODES.some((n) => MG.nodeState(S, n.id) === 'buy');
+  let d2 = tt.querySelector('.dot');
+  if (can) { if (!d2) { d2 = el('span', 'dot'); tt.append(d2); } d2.textContent = '!'; } else if (d2) d2.remove();
+  const pt = document.querySelector('[data-tab="picks"]');
+  const canP = MG.PICKS.some((p) => MG.pickState(S, p.id) === 'buy');
+  let d3 = pt.querySelector('.dot');
+  if (canP) { if (!d3) { d3 = el('span', 'dot'); pt.append(d3); } d3.textContent = '!'; } else if (d3) d3.remove();
+}
+function renderView() {
+  const v = $('#view');
+  v.classList.remove('maptab');
+  if (tab === 'tree') renderTree(v);
+  else if (tab === 'picks') renderPicks(v);
+  else if (tab === 'talent') renderTalent(v);
+  else renderRank(v);
+  drawDots();
+}
+function refresh() { drawTop(); renderSide(); renderView(); }
+
+// 스킬 트리 지도 — 가운데에서 나선으로 깊어짐. 가 본 곳 둘레만 안개가 걷힘
+const MAPS = 1.35, MAPPAD = 340;
+const MB = (() => {
+  const xs = MG.NODES.map((n) => n.x * MAPS), ys = MG.NODES.map((n) => n.y * MAPS);
+  const minX = Math.min(...xs) - MAPPAD, minY = Math.min(...ys) - MAPPAD;
+  return { minX, minY, w: Math.max(...xs) + MAPPAD - minX, h: Math.max(...ys) + MAPPAD - minY };
+})();
+const mp = (n) => ({ x: n.x * MAPS - MB.minX, y: n.y * MAPS - MB.minY });
+const tierOf = (n) => (n.k === 'heart' ? { rock: '#5a1420', vein: '#ff4f5e', name: '심장' } : T[n.col === 0 ? n.row : n.row]);
+function visOf(n) {
+  if (MG.lvOf(S, n.id)) return 'own';
+  if (TEST.noFog) return 'front';
+  if (n.req.every((r) => MG.lvOf(S, r) > 0)) return !n.after || MG.lvOf(S, n.after) ? 'front' : 'ghost';
+  if (n.req.every((r) => MG.lvOf(S, r) > 0 || MG.NODE[r].req.every((q) => MG.lvOf(S, q) > 0))) return 'ghost';
+  return 'hidden';
+}
+let cam = null, fogR = {}, fogAnim = 0, seenFront = null;
+const FOG = 0.5; // 안개 캔버스는 지도의 절반 해상도
+let mapBg = null, fogTex = null, fogCv = null, driftUrl = null, lastMask = null;
+function makeMapBg() {
+  const c = document.createElement('canvas'); c.width = MB.w * FOG; c.height = MB.h * FOG;
+  const g = c.getContext('2d'), r = MG.rng(11);
+  g.scale(FOG, FOG);
+  g.fillStyle = '#100d0b'; g.fillRect(0, 0, MB.w, MB.h);
+  for (let i = 0; i < 700; i++) {
+    const x = r() * MB.w, y = r() * MB.h, s = 30 + r() * 120;
+    g.fillStyle = `rgba(${44 + r() * 26},${36 + r() * 20},${30 + r() * 16},${0.18 + r() * 0.3})`;
+    g.beginPath(); for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2, rr = s * (0.5 + r() * 0.5); g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.7); } g.fill();
+  }
+  // 깊이마다 그 광석 빛이 도는 구역
+  for (const n of MG.NODES) {
+    if (n.col !== 0) continue;
+    const p = mp(n), tc = tierOf(n);
+    const gr = g.createRadialGradient(p.x, p.y, 10, p.x, p.y, 330);
+    gr.addColorStop(0, tc.vein + '30'); gr.addColorStop(1, tc.vein + '00');
+    g.fillStyle = gr; g.fillRect(p.x - 340, p.y - 340, 680, 680);
+  }
+  for (let i = 0; i < 260; i++) { g.fillStyle = T[Math.floor(r() * 10)].vein; g.globalAlpha = 0.1 + r() * 0.3; g.fillRect(r() * MB.w, r() * MB.h, 3, 3); }
+  g.globalAlpha = 1;
+  return c;
+}
+function makeFogTex() {
+  const c = document.createElement('canvas'); c.width = MB.w * FOG; c.height = MB.h * FOG;
+  const g = c.getContext('2d'), r = MG.rng(23);
+  g.fillStyle = 'rgba(22,19,17,.93)'; g.fillRect(0, 0, c.width, c.height);
+  for (let i = 0; i < 520; i++) {
+    const x = r() * c.width, y = r() * c.height, s = 30 + r() * 110;
+    const gr = g.createRadialGradient(x, y, 0, x, y, s);
+    const l = 90 + r() * 50;
+    gr.addColorStop(0, `rgba(${l},${l - 8},${l - 16},${0.05 + r() * 0.09})`); gr.addColorStop(1, `rgba(${l},${l - 8},${l - 16},0)`);
+    g.fillStyle = gr; g.fillRect(x - s, y - s, s * 2, s * 2);
+  }
+  return c;
+}
+function makeDrift() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const g = c.getContext('2d'), r = MG.rng(5);
+  for (let i = 0; i < 70; i++) {
+    const x = r() * 512, y = r() * 256, s = 30 + r() * 70;
+    for (const [dx, dy] of [[0, 0], [512, 0], [-512, 0], [0, 256], [0, -256]]) {
+      const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, s);
+      gr.addColorStop(0, `rgba(170,160,150,${0.06 + r() * 0.06})`); gr.addColorStop(1, 'rgba(170,160,150,0)');
+      g.fillStyle = gr; g.fillRect(x + dx - s, y + dy - s, s * 2, s * 2);
+    }
+  }
+  return c.toDataURL();
+}
+function fogTargets() {
+  const t = {};
+  for (const n of MG.NODES) {
+    const v = visOf(n);
+    t[n.id] = TEST.noFog ? 420 : v === 'own' ? (n.col === 0 ? 300 : 230) : v === 'front' ? 150 : 0;
+  }
+  return t;
+}
+function drawFog(cur) {
+  if (!fogCv) return;
+  const g = fogCv.getContext('2d');
+  g.globalCompositeOperation = 'source-over';
+  g.clearRect(0, 0, fogCv.width, fogCv.height);
+  g.drawImage(fogTex, 0, 0);
+  g.globalCompositeOperation = 'destination-out';
+  const hole = (x, y, rad) => {
+    if (rad <= 1) return;
+    x *= FOG; y *= FOG; rad *= FOG;
+    const gr = g.createRadialGradient(x, y, rad * 0.25, x, y, rad);
+    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.6, 'rgba(0,0,0,.8)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  };
+  for (const n of MG.NODES) {
+    const p = mp(n);
+    hole(p.x, p.y, cur[n.id] || 0);
+    // 가 본 길도 걷힘
+    for (const rq of n.req) {
+      const a = mp(MG.NODE[rq]), rr = Math.min(cur[n.id] || 0, cur[rq] || 0) * 0.6;
+      if (rr > 10) for (let i = 1; i < 4; i++) hole(a.x + (p.x - a.x) * i / 4, a.y + (p.y - a.y) * i / 4, rr);
+    }
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+function updateFog(animate) {
+  const tgt = fogTargets();
+  cancelAnimationFrame(fogAnim);
+  const done = () => { lastMask = fogCv.toDataURL(); const d = $('.drift'); if (d) d.style.webkitMaskImage = d.style.maskImage = `url(${lastMask})`; };
+  if (!animate) { fogR = tgt; drawFog(fogR); done(); return; }
+  const from = { ...fogR }, t0 = performance.now(), D = 1100;
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+    const cur = {};
+    for (const id in tgt) cur[id] = (from[id] || 0) + (tgt[id] - (from[id] || 0)) * e;
+    drawFog(cur);
+    if (k < 1) fogAnim = requestAnimationFrame(step); else { fogR = tgt; done(); }
+  };
+  fogAnim = requestAnimationFrame(step);
+}
+function focusPoint() {
+  // 지금 열 수 있는 곳들의 가운데 (가장 깊은 기둥 쪽)
+  const d = MG.depthOf(S);
+  const pts = MG.NODES.filter((n) => visOf(n) === 'front' && n.row >= d - 1).map(mp);
+  const base = mp(MG.NODE[S.heartOpen ? 'heart' : 'd' + d]);
+  if (!pts.length) return base;
+  const c = pts.reduce((a, p) => ({ x: a.x + p.x, y: a.y + p.y }), { x: 0, y: 0 });
+  return { x: (c.x / pts.length + base.x) / 2, y: (c.y / pts.length + base.y) / 2 };
+}
+function centerCam(p, z) {
+  const v = $('#view'), W = v.clientWidth, H = v.clientHeight;
+  z = z || (cam && cam.z) || Math.max(0.55, Math.min(0.95, Math.min(W, H) / 820));
+  cam = { z, x: W / 2 - p.x * z, y: H / 2 - p.y * z };
+}
+function applyCam() {
+  const m = $('.map'); if (!m || !cam) return;
+  const v = $('#view'), W = v.clientWidth, H = v.clientHeight;
+  // 지도가 언제나 화면을 가득 채우게 (가장자리가 안 보이게)
+  cam.z = Math.max(cam.z, minZoom());
+  cam.x = Math.min(0, Math.max(W - MB.w * cam.z, cam.x));
+  cam.y = Math.min(0, Math.max(H - MB.h * cam.z, cam.y));
+  m.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.z})`;
+}
+function minZoom() { const v = $('#view'); return Math.max(v.clientWidth / MB.w, v.clientHeight / MB.h); }
+function zoomAt(f, sx, sy) {
+  const z = Math.max(minZoom(), Math.min(1.6, cam.z * f));
+  cam.x = sx - (sx - cam.x) * (z / cam.z); cam.y = sy - (sy - cam.y) * (z / cam.z); cam.z = z;
+  applyCam();
+}
+function nodeEffect(n, lv) {
+  if (n.k === 'depth' || n.k === 'heart') return n.desc;
+  const f = { mast: '공격력 +{p}%', dmg: '공격력 +{p}%', spd: '간격 −{p}%', rad: '범위 +{n}', time: '+{n}초', rocks: '바위 +{n}', spawn: '생기는 속도 +{p}%', ore: '광석 +{p}%', crit: '치명타 +{p}%', critD: '치명타 피해 +{p}%', gem: '보석 +{p}%p', xp: '경험치 +{p}%', chain: '번개 {p}%', boom: '폭발 {p}%', sand: '+0.5초 {p}%', luck: '깊은 광석 +{p}', mine: '자동 광산 {n}단계' }[n.k];
+  return MG.fillDesc(f, n.v * lv);
+}
+function renderTree(v) {
+  v.innerHTML = '';
+  v.classList.add('maptab');
+  if (!mapBg) { mapBg = makeMapBg(); fogTex = makeFogTex(); driftUrl = makeDrift(); }
+  const wrap = el('div', 'mapwrap'), world = el('div', 'map');
+  world.style.width = MB.w + 'px'; world.style.height = MB.h + 'px';
+  mapBg.style.cssText = ''; world.append(mapBg);
+  // 이음선 (살짝 휘게)
+  const vis = {}; for (const n of MG.NODES) vis[n.id] = visOf(n);
+  let svg = `<svg class="wires" viewBox="0 0 ${MB.w} ${MB.h}">`;
+  MG.NODES.forEach((n, i) => {
+    for (const rq of n.req) {
+      const va = vis[rq], vb = vis[n.id];
+      if (vb === 'hidden' || va === 'hidden') continue;
+      const a = mp(MG.NODE[rq]), b = mp(n), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, bend = (i % 2 ? 0.14 : -0.14);
+      const cxp = mx - dy * bend, cyp = my + dx * bend;
+      const own = va === 'own' && vb === 'own', spine = n.col === 0;
+      const col = own ? (spine ? '#f2a541' : '#b98a4e') : vb === 'front' ? '#7a6550' : '#5a4a3c';
+      svg += `<path d="M${a.x} ${a.y} Q${cxp} ${cyp} ${b.x} ${b.y}" stroke="${col}" stroke-width="${spine ? 7 : 4}" fill="none" stroke-linecap="round" ${own ? '' : 'stroke-dasharray="2 12"'} opacity="${vb === 'ghost' ? 0.5 : 1}"/>`;
+    }
+  });
+  svg += '</svg>';
+  world.insertAdjacentHTML('beforeend', svg);
+  const firstSeen = !seenFront;
+  const nowFront = new Set();
+  for (const n of MG.NODES) {
+    const vv = vis[n.id];
+    if (vv === 'hidden') continue;
+    const p = mp(n), tc = tierOf(n), lv = MG.lvOf(S, n.id), st = MG.nodeState(S, n.id);
+    const b = el('button', `mn ${vv}${n.col === 0 ? ' spine' : ''}${n.k === 'mast' && vv !== 'ghost' ? ' mast' : ''}${vv !== 'ghost' ? ' ' + st : ''}`);
+    b.style.left = p.x + 'px'; b.style.top = p.y + 'px';
+    b.style.setProperty('--tier', tc.vein); b.style.setProperty('--tierRock', tc.rock);
+    b.dataset.id = n.id;
+    if (vv === 'ghost') {
+      b.textContent = '?'; b.setAttribute('aria-label', '안개 속 미지의 칸'); b.tabIndex = -1;
+      const waits = n.after && n.req.every((r) => MG.lvOf(S, r) > 0);
+      b.onmouseenter = b.onmousemove = (e) => showTip(waits ? `<b>안개 속</b><div class="t-sub">${esc(T[n.ct].name)}과 관련된 무언가가 있어요. 한 층 더 내려가면 드러나요.</div>` : '<b>안개 속</b><div class="t-sub">무언가 있는 것 같아요. 이어진 칸을 열면 드러나요.</div>', e.clientX, e.clientY);
+      b.onmouseleave = hideTip;
+      world.append(b); continue;
+    }
+    if (vv === 'front') { nowFront.add(n.id); if (!firstSeen && !seenFront.has(n.id)) b.classList.add('reveal'); }
+    b.setAttribute('aria-label', `${n.name} ${lv}/${n.max}`);
+    let pips = '';
+    if (n.max === Infinity) pips = `<span class="mlv num">Lv.${lv}</span>`;
+    else if (n.max > 1) { pips = '<span class="pips">'; for (let i = 0; i < n.max; i++) pips += `<i class="${i < lv ? 'on' : ''}"></i>`; pips += '</span>'; }
+    const cost = st === 'max' ? '' : (() => { const c = MG.nodeCost(n, lv), t = Object.keys(c)[0]; return `<span class="cost num">${oreSvg(+t)}${MG.fmt(c[t])}${Object.keys(c).length > 1 ? ' …' : ''}</span>`; })();
+    b.innerHTML = (n.k === 'mast' ? oreSvg(n.ct).replace('<svg', '<svg class="ic"') : icon(n.k === 'depth' ? (n.row ? 'depth' : 'dmg') : n.k)) + pips + `<span class="lab">${esc(n.name)}${cost}</span>`;
+    b.onmouseenter = b.onmousemove = (e) => {
+      if (wrap.classList.contains('drag')) return;
+      const L = MG.lvOf(S, n.id), c = MG.nodeCost(n, L);
+      const now = n.max > 1 ? `<div class="t-sub">지금: ${L ? nodeEffect(n, L) : '없음'}${L < n.max ? ` → 다음: ${nodeEffect(n, L + 1)}` : ''}</div>` : '';
+      const extra = n.k === 'mast' ? `<div class="t-sub">${esc(T[n.ct].name)}으로만 올려요. 레벨 끝없음, 숙련끼리는 공격력 보너스가 더해져요.</div>` : '';
+      const html = `<b>${esc(n.name)}</b>${extra}<div class="t-sub">${n.max === Infinity ? `레벨 ${L} · ` : n.max > 1 ? `레벨 ${L}/${n.max} · ` : ''}${esc(n.k === 'depth' || n.k === 'heart' ? n.desc : MG.fillDesc(n.desc, n.v))}${n.max > 1 ? ' (레벨마다)' : ''}</div>${now}` +
+        (MG.nodeState(S, n.id) === 'max' ? '<div class="t-sub" style="color:#f2a541">다 올렸어요</div>' : `<div class="t-cost">${costHtml(c, S)}</div>`);
+      showTip(html, e.clientX, e.clientY);
+    };
+    b.onmouseleave = hideTip;
+    b.onclick = (e) => {
+      if (wrap.dataset.moved === '1') return;
+      if (MG.buyNode(S, n.id)) {
+        sfx(n.k === 'depth' || n.k === 'heart' ? 'up' : 'buy');
+        save(); drawTop(); renderSide();
+        renderView();
+        const nb = $(`.mn[data-id="${n.id}"]`); if (nb) { nb.classList.add('flash'); nb.dispatchEvent(new MouseEvent('mousemove', { clientX: e.clientX, clientY: e.clientY })); }
+        if (n.k === 'depth') toast(`${T[n.v].name} 바위가 나오기 시작해요! 안개가 걷혔어요`);
+        if (n.k === 'heart') toast('광산의 심장이 드러났어요. 채굴장 가운데의 심장을 깨면 클리어!');
+      } else if (MG.nodeState(S, n.id) === 'open') {
+        b.animate([{ marginLeft: '-4px' }, { marginLeft: '4px' }, { marginLeft: '0' }], { duration: 160 });
+      }
+    };
+    world.append(b);
+  }
+  seenFront = nowFront;
+  // 안개 (가장 위)
+  if (!fogCv) { fogCv = document.createElement('canvas'); fogCv.width = MB.w * FOG; fogCv.height = MB.h * FOG; }
+  world.append(fogCv);
+  const drift = el('div', 'drift'); drift.style.backgroundImage = `url(${driftUrl})`; world.append(drift);
+  wrap.append(world);
+  // 조작
+  const ctl = el('div', 'mapctl');
+  ctl.innerHTML = '<button class="iconbtn" data-z="out" aria-label="작게">−</button><button class="iconbtn" data-z="in" aria-label="크게">+</button><button class="btn" data-z="home">갈 곳으로</button><span>끌어서 둘러보기 · 휠로 확대</span>';
+  ctl.addEventListener('pointerdown', (e) => e.stopPropagation());
+  ctl.querySelectorAll('[data-z]').forEach((bt) => (bt.onclick = () => {
+    const W = v.clientWidth, H = v.clientHeight;
+    if (bt.dataset.z === 'home') { centerCam(focusPoint()); world.style.transition = 'transform .45s ease'; applyCam(); setTimeout(() => (world.style.transition = ''), 460); }
+    else zoomAt(bt.dataset.z === 'in' ? 1.25 : 0.8, W / 2, H / 2);
+  }));
+  const lg = el('div', 'maplegend', '<span><i style="border-color:#f2a541;background:#3a2a17"></i>연 칸</span><span><i style="border-color:#9bd17f"></i>지금 열 수 있음</span><span><i style="border-color:#7a6a58;border-style:dashed"></i>안개 속</span>');
+  v.append(wrap, ctl, lg);
+  // 끌기·확대
+  let drag = null;
+  wrap.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, id: e.pointerId };
+    wrap.dataset.moved = '0';
+  });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (wrap.dataset.moved !== '1' && Math.hypot(dx, dy) > 5) { wrap.dataset.moved = '1'; wrap.classList.add('drag'); wrap.setPointerCapture(drag.id); hideTip(); }
+    if (wrap.dataset.moved === '1') { cam.x = drag.cx + dx; cam.y = drag.cy + dy; applyCam(); }
+  });
+  const up = () => { drag = null; wrap.classList.remove('drag'); setTimeout(() => (wrap.dataset.moved = '0'), 0); };
+  wrap.addEventListener('pointerup', up); wrap.addEventListener('pointercancel', up);
+  wrap.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = wrap.getBoundingClientRect();
+    zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  if (!cam) centerCam(focusPoint());
+  applyCam();
+  if (lastMask) drift.style.webkitMaskImage = drift.style.maskImage = `url(${lastMask})`;
+  if (!Object.keys(fogR).length) updateFog(false);
+  else {
+    const tgt = fogTargets();
+    if (Object.keys(tgt).some((id) => Math.abs((fogR[id] || 0) - tgt[id]) > 1)) updateFog(true); else drawFog(fogR);
+  }
+}
+
+function renderPicks(v) {
+  v.innerHTML = '';
+  const w = el('div', 'grid-wrap');
+  w.innerHTML = `<p class="lead">곡괭이는 한 번 만들면 계속 써요. 새 곡괭이를 만들면 바로 들어요. 보석으로 들고 있는 곡괭이를 강화할 수 있어요(레벨마다 공격력 +${MG.PICK_UP_V * 100}%).</p>`;
+  const g = el('div', 'picks');
+  for (const p of MG.PICKS) {
+    const st = MG.pickState(S, p.id), eq = S.picks.eq === p.id, up = S.picks.up[p.id] | 0;
+    const c = el('div', `pk${eq ? ' eq' : ''}${st === 'locked' ? ' locked' : ''}`);
+    const fxTxt = p.fx ? '특수: ' + nodeEffectFx(p.fx) : '';
+    c.innerHTML = `${pickSvg(p)}<h4>${esc(p.name)}${up ? ` <span style="color:var(--lamp)">+${up}</span>` : ''}</h4><div class="st num">공격력 ${MG.fmt(p.dmg)} · ${p.swing}초마다</div><div class="fx">${fxTxt}</div>`;
+    const act = el('div', 'act');
+    if (st === 'own') {
+      if (eq) {
+        const cost = MG.pickUpCost(up);
+        const ub = el('button', 'btn lamp', up >= MG.PICK_UP_MAX ? '강화 끝' : `강화 ${gemSvg.replace('<svg', '<svg width="14" height="14" style="vertical-align:-2px"')} ${cost}`);
+        ub.disabled = up >= MG.PICK_UP_MAX || S.gems < cost;
+        ub.onclick = () => { if (MG.upgradePick(S, p.id)) { sfx('gem'); save(); refresh(); } };
+        act.append(el('span', 'btn', '들고 있음'), ub);
+      } else {
+        const b = el('button', 'btn', '들기'); b.onclick = () => { S.picks.eq = p.id; save(); refresh(); }; act.append(b);
+      }
+    } else if (st !== 'locked' || MG.PICKS.indexOf(p) <= MG.PICKS.findIndex((x) => !S.picks.own.includes(x.id)) + 1) {
+      const need = el('div', 'need'); need.innerHTML = costHtml(p.cost, S); c.append(need);
+      const b = el('button', `btn${st === 'buy' ? ' hot' : ''}`, st === 'locked' ? '아직 못 만들어요' : '만들기'); b.disabled = st !== 'buy';
+      b.onclick = () => { if (MG.craft(S, p.id)) { sfx('up'); save(); refresh(); toast(`${p.name}를 만들어 들었어요`); } };
+      act.append(b);
+    }
+    c.append(act);
+    g.append(c);
+  }
+  w.append(g);
+  v.append(w);
+}
+function nodeEffectFx([k, v]) {
+  return MG.fillDesc({ crit: '치명타 확률 +{p}%', ore: '광석 +{p}%', rad: '채굴 범위 +{n}', spd: '휘두르는 간격 −{p}%', critD: '치명타 피해 +{p}%', boom: '깨질 때 {p}% 확률로 폭발', chain: '때릴 때 {p}% 확률로 번개' }[k], v);
+}
+
+function renderTalent(v) {
+  v.innerHTML = '';
+  const w = el('div', 'grid-wrap');
+  const hp = Math.round(S.cards * MG.CARD_HP * 100);
+  w.innerHTML = `<p class="lead">레벨이 오를 때마다 재능 카드를 한 장 골라요. 카드는 영원히 남지만, 한 장 고를 때마다 바위 체력도 ${MG.CARD_HP * 100}%씩 올라가요(지금 +${hp}%).</p>`;
+  if (S.pts > 0) {
+    const offer = MG.openOffer(S); save();
+    w.insertAdjacentHTML('beforeend', `<h3>고를 수 있는 카드 ${S.pts}장</h3>`);
+    const row = el('div', 'offer');
+    offer.forEach((id, i) => {
+      const c = MG.cardInfo(id);
+      const b = el('button', `card r${c.rar}`);
+      b.innerHTML = `${icon(c.k, '')}<span class="rar">${c.rarName}</span><h4>${esc(c.name)}</h4><p>${esc(c.text)}</p><span class="key">숫자 <b>${i + 1}</b> 키로도 골라요</span>`;
+      b.onclick = () => takeCard(i);
+      row.append(b);
+    });
+    w.append(row);
+  } else {
+    w.insertAdjacentHTML('beforeend', `<h3>다음 카드까지</h3><p class="muted num" style="margin:0 0 24px">레벨 ${S.level + 1}이 되면 카드를 골라요 (경험치 ${MG.fmt(S.xp)} / ${MG.fmt(MG.xpNeed(S.level))}). 깊은 바위일수록 경험치를 많이 줘요.</p>`);
+  }
+  const ids = Object.keys(S.talents);
+  w.insertAdjacentHTML('beforeend', `<h3>가진 카드 ${S.cards}장</h3>`);
+  if (!ids.length) w.insertAdjacentHTML('beforeend', '<p class="muted">아직 없어요.</p>');
+  const own = el('div', 'owned');
+  ids.sort().forEach((id) => { const c = MG.cardInfo(id); own.insertAdjacentHTML('beforeend', `<span class="chip" style="border:1px solid ${['#3d3229', '#5aa7e0', '#e0a53d'][c.rar]}">${esc(c.name)} · ${esc(c.text)}${S.talents[id] > 1 ? ` <b>×${S.talents[id]}</b>` : ''}</span>`); });
+  w.append(own);
+  v.append(w);
+}
+function takeCard(i) {
+  const id = S.offer && S.offer[i];
+  if (!id || !MG.pickCard(S, i)) return;
+  sfx('buy'); save();
+  toast(`${MG.cardInfo(id).name} — ${MG.cardInfo(id).text}`);
+  refresh();
+}
+
+let boardCache = null, boardErr = '';
+async function loadBoard() {
+  try { const r = await api('/api/rank'); if (r.error) throw new Error(r.error); boardCache = r; boardErr = ''; }
+  catch (e) { boardErr = '랭킹을 불러오지 못했어요. 잠시 뒤에 다시 열어 주세요'; }
+  if (tab === 'rank' && !$('#camp').hidden) renderView();
+}
+function renderRank(v) {
+  v.innerHTML = '';
+  const w = el('div', 'rank-wrap');
+  const best = `<div class="kv num" style="max-width:360px;margin-bottom:22px"><span>채굴한 판</span><b>${S.sessions}판</b><span>깬 바위</span><b>${MG.fmt(S.broken)}개</b><span>한 판 최고 점수</span><b>${MG.fmt(S.best)}</b></div>`;
+  if (!SERVER) {
+    w.innerHTML = `<h3>클리어 랭킹</h3><div class="runbox"><p>랭킹은 서버와 연결되는 웹 버전에서만 열려요. 이 화면에서는 혼자 즐기고, 랭킹에 도전하려면 아래 주소에서 새로 시작해 주세요.<br><a href="${PAGES_URL}" target="_blank" rel="noopener" style="color:var(--lamp)">${PAGES_URL}</a></p></div><h3>내 기록</h3>${best}`;
+    v.append(w); return;
+  }
+  const box = el('div', 'runbox');
+  if (TEST.on) {
+    box.innerHTML = '<p>지금은 <b>테스트 모드</b>예요. 여기서 한 것은 진짜 게임과 따로 저장되고 랭킹에 올라가지 않아요. 랭킹 표는 그대로 볼 수 있어요.</p>';
+  } else if (S.cleared && S.run) {
+    const rr = S.runResult || {};
+    if (rr.ms && !rr.error) {
+      box.innerHTML = `<div><span class="muted">클리어 기록</span><div class="big num">${MG.fmtTime(rr.ms)}</div></div>`;
+      if (!rr.named) {
+        const fm = el('form', 'namefm');
+        fm.innerHTML = `<input id="rankName" maxlength="8" placeholder="랭킹에 올릴 이름 (8자)" autocomplete="nickname"><button class="btn lamp" type="submit">올리기</button>`;
+        fm.onsubmit = async (e) => { e.preventDefault(); await submitName($('#rankName').value); };
+        const p = el('p', '', `예상 순위 <b>${rr.place}위</b>. 이름을 올리면 모두가 볼 수 있어요.`);
+        box.append(p, fm);
+      } else box.append(el('p', '', `랭킹에 올렸어요${rr.finalPlace ? ` — <b>${rr.finalPlace}위</b>` : ''}.`));
+    } else {
+      box.innerHTML = `<p>${esc(rr.error || '기록을 확인하는 중이에요')}</p>`;
+      if (rr.retry || !S.runResult) { const b = el('button', 'btn', '다시 보내기'); b.onclick = async () => { S.runResult = null; await reportClear(); renderView(); }; box.append(b); }
+    }
+  } else if (S.run) {
+    box.innerHTML = `<div><span class="muted">랭킹 도전 중</span><div class="big num" id="rkClock">${MG.fmtTime(runMs())}</div></div><p>새 게임을 시작한 때부터 광산의 심장을 깰 때까지의 실제 시간을 서버가 재요. 창을 닫아 둔 시간도 들어가요(그동안 자동 광산은 최대 8시간까지 캐요).</p>`;
+  } else {
+    box.innerHTML = `<p>이 게임은 랭킹 도전으로 시작하지 않았어요${S.runError ? ` (${esc(S.runError)})` : ''}. 기록을 남기려면 새로 시작해야 해요.</p>`;
+    const b = el('button', 'btn lamp', '랭킹 도전으로 새로 시작');
+    b.onclick = () => { if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '지금까지 캔 것이 모두 지워져요. 한 번 더 누르면 시작'; return; } newGame(true); };
+    box.append(b);
+  }
+  w.append(el('h3', '', '클리어 랭킹 · 빨리 깬 순서'));
+  w.append(box);
+  const tb = el('div');
+  if (boardErr) tb.innerHTML = `<p class="muted">${esc(boardErr)}</p>`;
+  else if (!boardCache) tb.innerHTML = '<p class="muted">불러오는 중…</p>';
+  else if (!boardCache.list.length) tb.innerHTML = `<p class="muted">아직 광산의 심장을 깬 사람이 없어요. 첫 번째가 되어 보세요!${boardCache.starts ? ` (지금까지 ${boardCache.starts}명 도전)` : ''}</p>`;
+  else {
+    let h = '<table class="board num"><thead><tr><th>순위</th><th>이름</th><th>걸린 시간</th><th>판</th><th>레벨</th><th>날짜</th></tr></thead><tbody>';
+    boardCache.list.forEach((e, i) => {
+      const me = S.runResult && S.runResult.entry === e.id;
+      h += `<tr class="${me ? 'me' : ''}"><td class="pl">${i + 1}</td><td>${esc(e.name)}</td><td>${MG.fmtTime(e.ms)}</td><td>${e.sessions}</td><td>${e.level}</td><td class="muted">${new Date(e.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}</td></tr>`;
+    });
+    h += `</tbody></table><p class="muted" style="font-size:12px">도전 ${boardCache.starts}번 · 클리어 ${boardCache.clears}번. 게임은 각자 브라우저에서 돌아가서 이상한 기록은 관리자가 지울 수 있어요.</p>`;
+    tb.innerHTML = h;
+  }
+  w.append(tb);
+  w.insertAdjacentHTML('beforeend', `<h3 style="margin-top:26px">내 기록</h3>${best}`);
+  v.append(w);
+}
+async function submitName(name) {
+  name = String(name || '').trim();
+  if (!name) { toast('이름을 넣어 주세요'); return; }
+  const r = await api('/api/run/name', { run: S.run.id, token: S.run.token, name }).catch(() => ({ error: '서버에 연결하지 못했어요' }));
+  if (r.error) { toast(r.error); return; }
+  S.runResult.named = true; S.runResult.finalPlace = r.place; S.runResult.entry = r.id; save();
+  toast(r.place ? `랭킹 ${r.place}위에 올렸어요!` : '올렸어요. 100위 밖이라 표에는 안 보여요');
+  await loadBoard();
+}
+
+function renderSide() {
+  const st = MG.stats(S), p = st.pick, up = S.picks.up[p.id] | 0;
+  const rates = MG.mineRates(S, st);
+  const mineTxt = st.mine
+    ? rates.map((r, t) => (r > 0 ? `<span class="chip">${oreSvg(t)}${r * 60 >= 10 ? MG.fmt(r * 60) : (r * 60).toFixed(1)}</span>` : '')).join('') + '<div style="margin-top:4px">분마다. 창을 닫아 둬도 8시간까지 캐요.</div>'
+    : '스킬 트리 「자동 광산」을 열면 쉬는 동안에도 광석이 쌓여요.';
+  const last = lastResult ? `<div class="last"><h3>지난 판</h3><div class="num">점수 <b>${MG.fmt(lastResult.score)}</b> · 바위 ${lastResult.broken}개</div><div class="chips">${lastResult.gain.map((n, t) => (n ? `<span class="chip">${oreSvg(t)}+${MG.fmt(n)}</span>` : '')).join('')}${lastResult.gems ? `<span class="chip">${gemSvg}+${lastResult.gems}</span>` : ''}</div></div>` : '';
+  $('#side').innerHTML = `
+    <div class="pickcard">${pickSvg(p)}<div><b>${esc(p.name)}${up ? ` +${up}` : ''}</b><small>들고 있는 곡괭이</small></div></div>
+    <div><h3>광부 능력</h3><div class="kv num">
+      <span>공격력</span><b>${MG.fmt(st.dmg)}</b>
+      <span>휘두르기</span><b>${st.swing.toFixed(2)}초마다</b>
+      <span>채굴 범위</span><b>${Math.round(st.rad)}</b>
+      <span>채굴 시간</span><b>${st.time.toFixed(1)}초</b>
+      <span>바위 최대</span><b>${st.rocks}개</b>
+      <span>치명타</span><b>${Math.round(st.crit * 100)}% · ×${st.critD.toFixed(2)}</b>
+      <span>광석 배수</span><b>×${st.oreMul.toFixed(2)}</b>
+      ${st.chain ? `<span>번개</span><b>${Math.round(st.chain * 100)}%</b>` : ''}
+      ${st.boom ? `<span>폭발</span><b>${Math.round(st.boom * 100)}%</b>` : ''}
+      ${st.sand ? `<span>시간의 모래</span><b>${Math.round(st.sand * 100)}%</b>` : ''}
+      ${st.mast ? `<span>광석 숙련</span><b>공격력 +${+(st.mast * 100).toFixed(1)}%</b>` : ''}
+      <span>바위 체력</span><b>×${st.hpMul.toFixed(2)}</b>
+    </div></div>
+    <div><h3>자동 광산</h3><div class="minebox">${mineTxt}</div></div>
+    ${S.heartOpen && !S.cleared ? `<div><h3>광산의 심장</h3><div class="minebox num"><b>${MG.fmt(S.heartHp)}</b> / ${MG.fmt(MG.HEART.hp)} 남음<div class="bar"><i style="width:${(S.heartHp / MG.HEART.hp) * 100}%;background:#ff4f5e"></i></div></div></div>` : ''}
+    ${last}`;
+}
+
+// ── 채굴장 ───────────────────────────────────────
+const cv = $('#cv'), cx = cv.getContext('2d');
+let sess = null, mouse = null, view = { s: 1, ox: 0, oy: 0, w: 0, h: 0, dpr: 1 };
+let fx = [], shake = 0, bgCanvas = null, lastResult = null, swingFx = [], rockCache = new Map();
+// 채굴장 크기: 바위가 많을수록 넓어짐 (엔진 stats의 W·H)
+const fieldW = () => (sess ? sess.st.W : MG.W), fieldH = () => (sess ? sess.st.H : MG.H);
+const UZ = () => (sess ? sess.st.field : 1); // 글자·선 굵기를 화면 기준으로 같게 유지
+function fit() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  const FW = fieldW(), FH = fieldH();
+  const s = Math.min(r.width / FW, (r.height - 70) / FH);
+  view = { s, ox: (r.width - FW * s) / 2, oy: 70 + (r.height - 70 - FH * s) / 2, w: r.width, h: r.height, dpr };
+  bgCanvas = null;
+}
+function toField(e) {
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left - view.ox) / view.s, y = (e.clientY - r.top - view.oy) / view.s;
+  return { x, y, sx: e.clientX - r.left, sy: e.clientY - r.top };
+}
+cv.addEventListener('mousemove', (e) => { mouse = toField(e); });
+cv.addEventListener('mouseleave', () => { mouse = null; });
+
+// 배경: 갱도 벽 (한 번 그려 두고 재사용)
+function makeBg() {
+  const c = document.createElement('canvas');
+  c.width = cv.width; c.height = cv.height;
+  const g = c.getContext('2d'), w = c.width, h = c.height, d = view.dpr;
+  const r = MG.rng(7);
+  g.fillStyle = '#0d0a08'; g.fillRect(0, 0, w, h);
+  // 바위 결
+  for (let i = 0; i < 220; i++) {
+    const x = r() * w, y = r() * h, s = (20 + r() * 90) * d;
+    g.fillStyle = `rgba(${40 + r() * 30},${32 + r() * 22},${26 + r() * 18},${0.25 + r() * 0.35})`;
+    g.beginPath();
+    for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2, rr = s * (0.5 + r() * 0.5); g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.6); }
+    g.fill();
+  }
+  // 바닥 (채굴장)
+  const fx0 = view.ox * d, fy0 = view.oy * d, fw = fieldW() * view.s * d, fh = fieldH() * view.s * d;
+  const fg = g.createRadialGradient(fx0 + fw / 2, fy0 + fh / 2, fh * 0.1, fx0 + fw / 2, fy0 + fh / 2, fw * 0.62);
+  fg.addColorStop(0, '#3a2e24'); fg.addColorStop(0.7, '#241b15'); fg.addColorStop(1, 'rgba(20,15,12,0)');
+  g.fillStyle = fg; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 900; i++) {
+    const x = fx0 + r() * fw, y = fy0 + r() * fh;
+    g.fillStyle = `rgba(${150 + r() * 60},${120 + r() * 50},${90 + r() * 40},${0.04 + r() * 0.06})`;
+    g.fillRect(x, y, (1 + r() * 3) * d, (1 + r() * 2) * d);
+  }
+  // 반짝이는 광물 조각
+  for (let i = 0; i < 60; i++) {
+    const x = r() * w, y = r() * h, t = Math.floor(r() * 10);
+    g.fillStyle = T[t].vein; g.globalAlpha = 0.15 + r() * 0.25;
+    g.fillRect(x, y, 2 * d, 2 * d);
+  }
+  g.globalAlpha = 1;
+  // 버팀목
+  const beam = (x) => {
+    g.fillStyle = '#3b2716'; g.fillRect(x, 0, 22 * d, h);
+    g.fillStyle = 'rgba(255,200,140,.06)'; g.fillRect(x + 3 * d, 0, 4 * d, h);
+  };
+  beam(fx0 - 46 * d); beam(fx0 + fw + 24 * d);
+  g.fillStyle = '#3b2716'; g.fillRect(fx0 - 46 * d, fy0 - 40 * d, fw + 92 * d, 18 * d);
+  // 가장자리 어둡게
+  const vg = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.75);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.75)');
+  g.fillStyle = vg; g.fillRect(0, 0, w, h);
+  return c;
+}
+// 바위 모양 (바위마다 한 번 그려 둠)
+function rockSprite(k) {
+  let sp = rockCache.get(k.id);
+  if (sp) return sp;
+  const T0 = T[k.tier], size = Math.ceil(k.r * 2.6), d = view.dpr * view.s;
+  const c = document.createElement('canvas');
+  c.width = c.height = Math.ceil(size * d);
+  const g = c.getContext('2d');
+  g.scale(d, d); g.translate(size / 2, size / 2);
+  const r = MG.rng(k.seed || k.id);
+  const n = 8 + Math.floor(r() * 4), pts = [];
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + r() * 0.3, rr = k.r * (0.82 + r() * 0.3); pts.push([Math.cos(a) * rr, Math.sin(a) * rr * 0.92]); }
+  g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath();
+  const gr = g.createLinearGradient(-k.r, -k.r, k.r, k.r);
+  gr.addColorStop(0, shade(T0.rock, 35)); gr.addColorStop(0.55, T0.rock); gr.addColorStop(1, shade(T0.rock, -30));
+  g.fillStyle = gr; g.fill();
+  g.lineWidth = 2; g.strokeStyle = 'rgba(0,0,0,.55)'; g.stroke();
+  g.save(); g.clip();
+  // 면
+  g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = 1.2;
+  for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(pts[i * 2 % n][0] * 0.3, pts[i * 2 % n][1] * 0.3); g.lineTo(pts[(i * 3 + 1) % n][0], pts[(i * 3 + 1) % n][1]); g.stroke(); }
+  // 광맥
+  const vc = k.tier === 0 ? 3 : 4 + Math.floor(r() * 3);
+  for (let i = 0; i < vc; i++) {
+    const a = r() * Math.PI * 2, dd = r() * k.r * 0.6, x = Math.cos(a) * dd, y = Math.sin(a) * dd, s = k.r * (0.12 + r() * 0.16);
+    g.fillStyle = T0.vein; g.globalAlpha = k.tier === 0 ? 0.25 : 0.95;
+    g.beginPath(); for (let j = 0; j < 5; j++) { const b = (j / 5) * Math.PI * 2 + r(); g.lineTo(x + Math.cos(b) * s, y + Math.sin(b) * s); } g.fill();
+    g.globalAlpha = k.tier === 0 ? 0.15 : 0.7; g.fillStyle = '#fff'; g.fillRect(x - s * 0.3, y - s * 0.4, s * 0.35, s * 0.25);
+  }
+  g.globalAlpha = 1;
+  const hl = g.createRadialGradient(-k.r * 0.4, -k.r * 0.5, 1, -k.r * 0.4, -k.r * 0.5, k.r);
+  hl.addColorStop(0, 'rgba(255,240,220,.22)'); hl.addColorStop(1, 'rgba(255,240,220,0)');
+  g.fillStyle = hl; g.fillRect(-k.r * 2, -k.r * 2, k.r * 4, k.r * 4);
+  g.restore();
+  // 금 가는 선 (미리 정해 둠)
+  const cracks = [];
+  for (let i = 0; i < 6; i++) {
+    const a = r() * Math.PI * 2, line = [[Math.cos(a) * k.r * 0.15, Math.sin(a) * k.r * 0.15]];
+    let x = line[0][0], y = line[0][1];
+    for (let j = 0; j < 3; j++) { const b = a + (r() - 0.5) * 1.1; x += Math.cos(b) * k.r * 0.28; y += Math.sin(b) * k.r * 0.28; line.push([x, y]); }
+    cracks.push(line);
+  }
+  sp = { c, size, cracks };
+  rockCache.set(k.id, sp);
+  return sp;
+}
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (v) => Math.max(0, Math.min(255, v + amt));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+
+function startSession() {
+  if (sess) return;
+  hideTip();
+  $('#camp').hidden = true; $('#mine').hidden = false;
+  $('#result').hidden = true; $('#clearBox').hidden = true;
+  rockCache.clear(); fx = []; swingFx = [];
+  sess = MG.newSession(S);
+  fit(); // 바위 수에 맞춰 넓어진 채굴장 크기로
+  sess.hits = {};
+  if (TEST.on) {
+    if (TEST.oneHit) sess.st.dmg *= 1e6;
+    if (TEST.endless) sess.timeLeft = 1e9;
+  }
+  sfx('start');
+  lastTick = performance.now();
+  tickSec = Math.ceil(sess.timeLeft);
+  if (!rafOn) { rafOn = true; requestAnimationFrame(frame); }
+}
+function endSessionNow(early) {
+  if (!sess || sess.done) return;
+  sess.done = true;
+  if (early) sess.over = true;
+  const res = MG.endSession(S, sess);
+  lastResult = res;
+  save();
+  sfx(S.cleared && res.heartHit && sess.clearedNow ? 'clear' : 'end');
+  if (sess.clearedNow) { showClear(); return; }
+  showResult(res);
+}
+function showResult(res) {
+  const box = $('#result');
+  const gains = res.gain.map((n, t) => (n ? `<span class="chip">${oreSvg(t)}+${MG.fmt(n)} ${T[t].name}</span>` : '')).join('') + (res.gems ? `<span class="chip">${gemSvg}+${res.gems} 보석</span>` : '');
+  box.innerHTML = `<div class="rc"><h2>채굴 끝!</h2><div class="muted">이번 판 점수 ${res.best && S.sessions > 1 ? '<span class="newbest">최고 기록</span>' : ''}</div><div class="score num">${MG.fmt(res.score)}</div>
+    <div class="chips">${gains || '<span class="muted">캔 광석이 없어요. 마우스를 바위 위에 올려 두세요</span>'}</div>
+    <div class="muted num" style="font-size:13px">바위 ${res.broken}개 · 치명타 ${res.crits}번${res.heartHit ? ` · 심장에 ${MG.fmt(res.heartHit)} 피해` : ''}${S.pts ? ` · <b style="color:var(--lamp)">재능 카드 ${S.pts}장 고를 수 있어요</b>` : ''}</div>
+    <div class="row"><button class="btn" id="toCamp">캠프로 <kbd>Esc</kbd></button><button class="btn lamp" id="again">바로 다시 캐기 <kbd>Space</kbd></button></div></div>`;
+  box.hidden = false;
+  $('#toCamp').onclick = toCamp; $('#again').onclick = () => { closeMine(); startSession(); };
+  $('#again').focus({ preventScroll: true });
+}
+function closeMine() { sess = null; $('#result').hidden = true; $('#clearBox').hidden = true; }
+function toCamp() {
+  closeMine();
+  $('#mine').hidden = true; $('#camp').hidden = false;
+  if (S.pts > 0 && tab !== 'talent') setTab('talent'); else refresh();
+  $('#goBtn').focus({ preventScroll: true });
+}
+function showClear() {
+  const box = $('#clearBox');
+  burst(fieldW() / 2, fieldH() / 2, '#ff4f5e', 120, 9); burst(fieldW() / 2, fieldH() / 2, '#ffd36b', 120, 7);
+  const ms = runMs();
+  box.innerHTML = `<div class="rc"><h2>광산의 심장을 깼어요!</h2><div class="muted">새 게임부터 걸린 시간</div><div class="t num" id="clearT">${MG.fmtTime(ms)}</div>
+    <div class="muted num" style="font-size:13px">${S.sessions}판 · 레벨 ${S.level} · 바위 ${MG.fmt(S.broken)}개</div>
+    <div id="clearRank" style="margin-top:14px"></div>
+    <div class="row"><button class="btn lamp" id="clearOk">캠프로 돌아가기</button></div></div>`;
+  box.hidden = false;
+  $('#clearOk').onclick = () => { toCamp(); setTab('rank'); };
+  const cr = $('#clearRank');
+  if (TEST.on) cr.innerHTML = '<p class="muted" style="font-size:13px">테스트 모드라 랭킹에는 올라가지 않아요.</p>';
+  else if (!SERVER) cr.innerHTML = `<p class="muted" style="font-size:13px">랭킹은 웹 버전(<a href="${PAGES_URL}" target="_blank" rel="noopener" style="color:var(--lamp)">${PAGES_URL}</a>)에서만 올릴 수 있어요.</p>`;
+  else if (!S.run) cr.innerHTML = '<p class="muted" style="font-size:13px">이 게임은 랭킹 도전으로 시작하지 않아서 기록을 올릴 수 없어요.</p>';
+  else {
+    cr.innerHTML = '<p class="muted">서버가 기록을 확인하는 중…</p>';
+    reportClear().then(() => {
+      const rr = S.runResult || {};
+      if (rr.error) { cr.innerHTML = `<p class="muted" style="font-size:13px">${esc(rr.error)}</p>`; return; }
+      $('#clearT').textContent = MG.fmtTime(rr.ms);
+      cr.innerHTML = `<p style="margin:0 0 8px">예상 순위 <b style="color:var(--lamp)">${rr.place}위</b></p><form class="namefm" id="cfm" style="justify-content:center"><input id="cName" maxlength="8" placeholder="랭킹에 올릴 이름" autocomplete="nickname"><button class="btn lamp" type="submit">올리기</button></form>`;
+      $('#cfm').onsubmit = async (e) => { e.preventDefault(); await submitName($('#cName').value); if (S.runResult.named) cr.innerHTML = `<p>랭킹 <b style="color:var(--lamp)">${S.runResult.finalPlace || '100위 밖'}${S.runResult.finalPlace ? '위' : ''}</b>에 올렸어요!</p>`; };
+      setTimeout(() => $('#cName') && $('#cName').focus(), 50);
+    });
+  }
+}
+
+let rafOn = false, lastTick = 0, tickSec = 0;
+function frame(now) {
+  if (!sess) { rafOn = false; return; }
+  let dt = Math.min(0.05, (now - lastTick) / 1000) * (TEST.on ? TEST.speed : 1);
+  lastTick = now;
+  if (!sess.over) {
+    // 정해진 간격으로 나눠서 진행
+    while (dt > 0) {
+      const d = Math.min(1 / 60, dt); dt -= d;
+      const cur = mouse && mouse.x >= -20 && mouse.y >= -20 && mouse.x <= fieldW() + 20 && mouse.y <= fieldH() + 20 ? mouse : null;
+      const wasCleared = S.cleared;
+      MG.step(S, sess, d, cur);
+      handleEvents();
+      if (!wasCleared && S.cleared) { sess.clearedNow = true; sess.over = true; shake = 28; }
+      if (sess.over) break;
+    }
+    const sec = Math.ceil(sess.timeLeft);
+    if (sec !== tickSec) { tickSec = sec; if (sec <= 3 && sec > 0) sfx('tick'); }
+    if (sess.over && !sess.ending) { const me = sess; me.ending = true; setTimeout(() => { if (sess === me) endSessionNow(false); }, me.clearedNow ? 1200 : 450); }
+  } else dt = (now - lastTick) / 1000;
+  draw(1 / 60);
+  requestAnimationFrame(frame);
+}
+
+function handleEvents() {
+  for (const e of sess.ev) {
+    if (e.e === 'swing') {
+      swingFx.push({ x: e.x, y: e.y, t: 0 });
+    } else if (e.e === 'hit') {
+      const k = sess.rocks.find((r) => r.id === e.id);
+      if (k) { k.flash = 1; k.kick = (k.kick || 0) + (e.crit ? 5 : 2.5); }
+      if (e.kind === 'swing') fx.push({ type: 'pick', x: e.x, y: e.y - 6, t: 0, life: 0.2, flip: Math.random() < 0.5 });
+      if (e.crit || k && k.heart || e.kind !== 'swing') fx.push({ type: 'num', x: e.x + (Math.random() - 0.5) * 20, y: e.y - 14, t: 0, life: 0.8, text: MG.fmt(e.dmg), crit: e.crit, color: e.crit ? '#ffb347' : e.kind === 'zap' ? '#9fd8ff' : e.kind === 'boom' ? '#ff8a4d' : '#fff' });
+      sfx(e.crit ? 'crit' : 'hit', k ? k.tier : 0);
+      if (e.crit) { burst(e.x, e.y, '#ffd36b', 6, 3); shake = Math.max(shake, 3); }
+      if (k && k.heart) { shake = Math.max(shake, 4); burst(e.x + (Math.random() - 0.5) * 60, e.y + (Math.random() - 0.5) * 60, '#ff4f5e', 5, 4); }
+    } else if (e.e === 'break') {
+      const c = T[e.tier];
+      burst(e.x, e.y, c.rock, 12 + e.tier, 4.5);
+      burst(e.x, e.y, c.vein, 6 + e.tier, 3.5);
+      fx.push({ type: 'gain', x: e.x, y: e.y - 10, t: 0, life: 1, text: `+${e.n} ${c.name}`, color: c.vein });
+      if (e.gem) { fx.push({ type: 'gain', x: e.x, y: e.y - 32, t: 0, life: 1.3, text: '+1 보석', color: '#ff8fbd' }); sfx('gem'); }
+      if (e.up) { fx.push({ type: 'big', x: e.x, y: e.y - 50, t: 0, life: 1.6, text: '레벨 업!', color: '#f2a541' }); sfx('up'); }
+      sfx('break', e.tier);
+      rockCache.delete(e.id);
+      shake = Math.max(shake, 1.5 + e.tier * 0.25);
+    } else if (e.e === 'boom') {
+      fx.push({ type: 'ring', x: e.x, y: e.y, t: 0, life: 0.35, r: 120, color: '#ff9a3d' });
+      burst(e.x, e.y, '#ffb347', 18, 6); sfx('boom'); shake = Math.max(shake, 7);
+    } else if (e.e === 'zap') {
+      fx.push({ type: 'zap', x: e.x1, y: e.y1, x2: e.x2, y2: e.y2, t: 0, life: 0.18, seed: Math.random() * 1e6 });
+      sfx('zap');
+    } else if (e.e === 'sand') {
+      fx.push({ type: 'gain', x: e.x, y: e.y - 28, t: 0, life: 1, text: '+0.5초', color: '#fff3b0' });
+    } else if (e.e === 'heart') {
+      for (let i = 0; i < 6; i++) burst(e.x, e.y, ['#ff4f5e', '#ffd36b', '#fff'][i % 3], 40, 10);
+    }
+  }
+  sess.ev.length = 0;
+  if (fx.length > 400) fx.splice(0, fx.length - 400);
+}
+function burst(x, y, color, n, sp) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = (0.4 + Math.random()) * sp * 60;
+    fx.push({ type: 'chip', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, t: 0, life: 0.5 + Math.random() * 0.5, color, s: 2 + Math.random() * 3.5, rot: Math.random() * 6 });
+  }
+}
+
+function draw(dt) {
+  const g = cx, d = view.dpr;
+  if (!bgCanvas) bgCanvas = makeBg();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.drawImage(bgCanvas, 0, 0);
+  const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
+  shake = Math.max(0, shake * 0.86 - 0.05);
+  g.setTransform(d * view.s, 0, 0, d * view.s, d * (view.ox + sx), d * (view.oy + sy));
+  const t = performance.now() / 1000;
+  // 등불 빛 (흔들림)
+  const fl = 0.85 + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.03;
+  g.globalCompositeOperation = 'lighter';
+  for (const [lx, ly] of [[-30, 60], [fieldW() + 30, 60]]) {
+    const lg = g.createRadialGradient(lx, ly, 5, lx, ly, 420 * fl * UZ());
+    lg.addColorStop(0, 'rgba(255,170,80,.22)'); lg.addColorStop(1, 'rgba(255,140,60,0)');
+    g.fillStyle = lg; g.fillRect(lx - 450 * UZ(), ly - 450 * UZ(), 900 * UZ(), 900 * UZ());
+    g.fillStyle = `rgba(255,${200 + Math.random() * 40},120,.9)`;
+    g.beginPath(); g.arc(lx, ly, 6 + Math.random() * 1.5, 0, Math.PI * 2); g.fill();
+  }
+  g.globalCompositeOperation = 'source-over';
+  if (!sess) return;
+  // 바위
+  for (const k of sess.rocks) {
+    if (k.born > sess.t) continue;
+    const age = sess.t - k.born, pop = Math.min(1, age / 0.18), sc = k.heart ? 1 : 0.6 + 0.4 * (1 - Math.pow(1 - pop, 3)) + (pop < 1 ? 0 : 0);
+    k.kick = (k.kick || 0) * 0.8;
+    const kx = k.kick ? (Math.random() - 0.5) * k.kick : 0;
+    if (k.heart) { drawHeart(g, k, t); continue; }
+    const sp = rockSprite(k);
+    g.save();
+    g.translate(k.x + kx, k.y);
+    g.scale(sc, sc);
+    // 그림자
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(2, k.r * 0.75, k.r * 0.95, k.r * 0.35, 0, 0, Math.PI * 2); g.fill();
+    g.drawImage(sp.c, -sp.size / 2, -sp.size / 2, sp.size, sp.size);
+    // 금
+    const dmg = 1 - k.hp / k.max;
+    if (dmg > 0.05) {
+      g.strokeStyle = 'rgba(10,6,4,.85)'; g.lineWidth = 1.6; g.lineCap = 'round';
+      const nC = Math.ceil(dmg * sp.cracks.length);
+      for (let i = 0; i < nC; i++) { g.beginPath(); sp.cracks[i].forEach(([x, y], j) => (j ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); }
+    }
+    if (k.flash) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = k.flash * 0.5; g.drawImage(sp.c, -sp.size / 2, -sp.size / 2, sp.size, sp.size); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; k.flash = Math.max(0, k.flash - 0.12); }
+    // 체력 막대 (맞은 바위만)
+    if (dmg > 0) {
+      g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(-k.r * 0.8, -k.r - 10, k.r * 1.6, 4);
+      g.fillStyle = T[k.tier].vein; g.fillRect(-k.r * 0.8, -k.r - 10, k.r * 1.6 * (k.hp / k.max), 4);
+    }
+    g.restore();
+  }
+  // 효과
+  for (const f of fx) {
+    f.t += dt;
+    const p = f.t / f.life;
+    if (p >= 1) continue;
+    if (f.type === 'chip') {
+      f.vy += 900 * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += 8 * dt;
+      g.save(); g.translate(f.x, f.y); g.rotate(f.rot); g.globalAlpha = 1 - p; g.fillStyle = f.color; g.fillRect(-f.s / 2, -f.s / 2, f.s, f.s); g.restore();
+    } else if (f.type === 'pick') {
+      const a = -1.2 + Math.min(1, p * 1.8) * 1.6;
+      g.save(); g.translate(f.x + (f.flip ? -14 : 14), f.y - 16); g.scale(f.flip ? -1 : 1, 1); g.rotate(a); g.globalAlpha = p > 0.7 ? (1 - p) / 0.3 : 1;
+      drawPick(g, 26);
+      g.restore();
+    } else if (f.type === 'num' || f.type === 'gain' || f.type === 'big') {
+      const yy = f.y - p * (f.type === 'num' ? 26 : 40) * UZ();
+      g.globalAlpha = p < 0.7 ? 1 : (1 - p) / 0.3;
+      g.font = `${f.type === 'big' ? 900 : 700} ${(f.type === 'big' ? 26 : f.crit ? 20 : f.type === 'gain' ? 15 : 13) * Math.sqrt(UZ())}px ${f.type === 'num' ? 'IBM Plex Sans KR' : 'Hahmlet'}, sans-serif`;
+      g.textAlign = 'center'; g.lineWidth = 4 * Math.sqrt(UZ()); g.strokeStyle = 'rgba(0,0,0,.75)';
+      g.strokeText(f.text, f.x, yy); g.fillStyle = f.color; g.fillText(f.text, f.x, yy);
+      g.globalAlpha = 1;
+    } else if (f.type === 'ring') {
+      g.strokeStyle = f.color; g.globalAlpha = 1 - p; g.lineWidth = 6 * (1 - p) + 1;
+      g.beginPath(); g.arc(f.x, f.y, f.r * (0.3 + p * 0.7), 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+      g.fillStyle = `rgba(255,170,80,${0.35 * (1 - p)})`; g.beginPath(); g.arc(f.x, f.y, f.r * 0.6 * (1 - p), 0, Math.PI * 2); g.fill();
+    } else if (f.type === 'zap') {
+      const r = MG.rng(f.seed + Math.floor(f.t * 60));
+      g.strokeStyle = '#d8f2ff'; g.lineWidth = 2.5; g.globalAlpha = 1 - p; g.shadowColor = '#7fd0ff'; g.shadowBlur = 12;
+      g.beginPath(); g.moveTo(f.x, f.y);
+      for (let i = 1; i < 8; i++) { const q = i / 8; g.lineTo(f.x + (f.x2 - f.x) * q + (r() - 0.5) * 28, f.y + (f.y2 - f.y) * q + (r() - 0.5) * 28); }
+      g.lineTo(f.x2, f.y2); g.stroke(); g.shadowBlur = 0; g.globalAlpha = 1;
+    }
+  }
+  fx = fx.filter((f) => f.t < f.life);
+  // 마우스 고리
+  const st = sess.st;
+  if (mouse && !sess.over) {
+    const prog = 1 - Math.max(0, sess.swingT) / st.swing;
+    g.save(); g.translate(mouse.x, mouse.y);
+    g.strokeStyle = 'rgba(242,165,65,.18)'; g.lineWidth = 2; g.setLineDash([]);
+    g.beginPath(); g.arc(0, 0, st.rad, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(255,214,150,.85)'; g.lineWidth = 3 * UZ(); g.lineCap = 'round';
+    g.beginPath(); g.arc(0, 0, st.rad, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); g.stroke();
+    g.setLineDash([4, 7]); g.strokeStyle = 'rgba(242,165,65,.45)'; g.lineWidth = 1.2;
+    g.rotate(t * 0.6); g.beginPath(); g.arc(0, 0, st.rad - 6, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    g.restore();
+    g.fillStyle = '#ffe2b0'; g.beginPath(); g.arc(mouse.x, mouse.y, 2.5 * UZ(), 0, Math.PI * 2); g.fill();
+  }
+  for (const s of swingFx) {
+    s.t += dt; const p = s.t / 0.25;
+    if (p >= 1) continue;
+    g.strokeStyle = `rgba(255,220,160,${0.5 * (1 - p)})`; g.lineWidth = 3 * (1 - p) + 0.5;
+    g.beginPath(); g.arc(s.x, s.y, st.rad * (1 + p * 0.18), 0, Math.PI * 2); g.stroke();
+  }
+  swingFx = swingFx.filter((s) => s.t < 0.25);
+  // 처음 몇 판은 안내
+  if (S.sessions < 2 && sess.t < 6) {
+    g.globalAlpha = Math.min(1, (6 - sess.t) / 1.5);
+    g.font = `700 ${22 * UZ()}px Hahmlet, serif`; g.textAlign = 'center'; g.lineWidth = 5 * UZ(); g.strokeStyle = 'rgba(0,0,0,.8)'; g.fillStyle = '#f1e6d2';
+    const msg = '마우스를 바위 위에 올려 두면 곡괭이가 저절로 캐요';
+    g.strokeText(msg, fieldW() / 2, fieldH() - 24 * UZ()); g.fillText(msg, fieldW() / 2, fieldH() - 24 * UZ());
+    g.globalAlpha = 1;
+  }
+  // 시간 얼마 안 남음
+  if (sess.timeLeft < 3 && !sess.over) {
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const a = (0.5 + Math.sin(t * 10) * 0.5) * 0.35;
+    const vg = g.createRadialGradient(cv.width / 2, cv.height / 2, Math.min(cv.width, cv.height) * 0.4, cv.width / 2, cv.height / 2, Math.max(cv.width, cv.height) * 0.7);
+    vg.addColorStop(0, 'rgba(255,60,40,0)'); vg.addColorStop(1, `rgba(255,60,40,${a})`);
+    g.fillStyle = vg; g.fillRect(0, 0, cv.width, cv.height);
+  }
+  drawHud();
+}
+function drawPick(g, L) {
+  const p = sess.st.pick, i = MG.PICKS.indexOf(p);
+  const head = i === 0 ? '#9c7a55' : T[i - 1].vein, dark = i === 0 ? '#5c4630' : T[i - 1].rock;
+  g.lineCap = 'round';
+  g.strokeStyle = '#3a2614'; g.lineWidth = 5; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, L); g.stroke();
+  g.strokeStyle = '#9a6a3d'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, L); g.stroke();
+  g.fillStyle = head; g.strokeStyle = dark; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(-16, 4); g.quadraticCurveTo(0, -10, 16, 4); g.quadraticCurveTo(0, -3, -16, 4); g.fill(); g.stroke();
+}
+function drawHeart(g, k, t) {
+  const pulse = 1 + Math.sin(t * 3.2) * 0.04 + (k.kick ? 0.03 : 0);
+  g.save(); g.translate(k.x, k.y); g.scale(pulse, pulse);
+  const glow = g.createRadialGradient(0, 0, 10, 0, 0, k.r * 2.2);
+  glow.addColorStop(0, 'rgba(255,80,90,.45)'); glow.addColorStop(1, 'rgba(255,80,90,0)');
+  g.fillStyle = glow; g.fillRect(-k.r * 2.4, -k.r * 2.4, k.r * 4.8, k.r * 4.8);
+  // 결정 하트
+  const R = k.r;
+  g.beginPath();
+  g.moveTo(0, R * 0.95);
+  g.bezierCurveTo(-R * 1.25, R * 0.05, -R * 0.95, -R * 1.05, 0, -R * 0.45);
+  g.bezierCurveTo(R * 0.95, -R * 1.05, R * 1.25, R * 0.05, 0, R * 0.95);
+  const hg = g.createLinearGradient(-R, -R, R, R);
+  hg.addColorStop(0, '#ff8c8c'); hg.addColorStop(0.5, '#d4243b'); hg.addColorStop(1, '#6e0b1e');
+  g.fillStyle = hg; g.fill();
+  g.lineWidth = 3; g.strokeStyle = '#ffd36b'; g.stroke();
+  g.strokeStyle = 'rgba(255,230,200,.45)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(0, -R * 0.45); g.lineTo(-R * 0.35, R * 0.15); g.lineTo(0, R * 0.95); g.lineTo(R * 0.35, R * 0.15); g.closePath(); g.stroke();
+  g.beginPath(); g.moveTo(-R * 0.75, -R * 0.25); g.lineTo(-R * 0.35, R * 0.15); g.lineTo(R * 0.35, R * 0.15); g.lineTo(R * 0.75, -R * 0.25); g.stroke();
+  const dmg = 1 - k.hp / k.max;
+  g.strokeStyle = 'rgba(30,0,0,.8)'; g.lineWidth = 2;
+  for (let i = 0; i < Math.floor(dmg * 10); i++) { const a = i * 2.3; g.beginPath(); g.moveTo(Math.cos(a) * R * 0.1, Math.sin(a) * R * 0.1); g.lineTo(Math.cos(a + 0.4) * R * 0.5, Math.sin(a + 0.4) * R * 0.45); g.lineTo(Math.cos(a) * R * 0.75, Math.sin(a) * R * 0.6); g.stroke(); }
+  g.restore();
+  const z = UZ();
+  g.fillStyle = 'rgba(0,0,0,.65)'; g.fillRect(k.x - 90 * z, k.y + k.r + 18 * z, 180 * z, 9 * z);
+  g.fillStyle = '#ff4f5e'; g.fillRect(k.x - 90 * z, k.y + k.r + 18 * z, 180 * z * (k.hp / k.max), 9 * z);
+  g.font = `700 ${13 * z}px "IBM Plex Sans KR", sans-serif`; g.textAlign = 'center'; g.fillStyle = '#ffd0d0';
+  g.fillText(`광산의 심장 ${MG.fmt(Math.max(0, k.hp))}`, k.x, k.y + k.r + 44 * z);
+}
+let hudShown = '';
+function drawHud() {
+  const tl = Math.max(0, sess.timeLeft);
+  const b = $('#tLeft'); b.textContent = tl > 1e6 ? '∞' : tl.toFixed(1); b.classList.toggle('low', tl < 3);
+  $('#tBar').style.width = Math.min(100, (tl / sess.st.time) * 100) + '%';
+  const key = sess.score + ':' + sess.gain.join(',') + ':' + sess.gems;
+  if (key !== hudShown) {
+    hudShown = key;
+    $('#hudL').innerHTML = `점수<b>${MG.fmt(sess.score)}</b>`;
+    $('#hudR').innerHTML = sess.gain.map((n, t) => (n ? `<span class="chip num">${oreSvg(t)}+${MG.fmt(n)}</span>` : '')).join('') + (sess.gems ? `<span class="chip num">${gemSvg}+${sess.gems}</span>` : '');
+  }
+}
+
+// ── 알림·메뉴 ────────────────────────────────────
+let toastT = 0;
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  const t = el('div', 'toast', esc(msg)); document.body.append(t);
+  clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2800);
+}
+function modal(html) {
+  const m = el('div', 'modal'); m.innerHTML = `<div class="rc">${html}</div>`;
+  m.onclick = (e) => { if (e.target === m) m.remove(); };
+  document.body.append(m);
+  return m;
+}
+function openMenu() {
+  const m = modal(`<h2>메뉴</h2><div class="menu-list" style="margin-top:12px">
+    <button class="btn" id="mHelp">게임 방법</button>
+    ${SERVER ? '<button class="btn" id="mFeed">의견 보내기</button>' : ''}
+    <button class="btn" id="mReset">처음부터 다시 하기</button>
+    <button class="btn" id="mClose">닫기</button></div>`);
+  $('#mClose', m).onclick = () => m.remove();
+  $('#mHelp', m).onclick = () => { m.remove(); openHelp(); };
+  if (SERVER) $('#mFeed', m).onclick = () => { m.remove(); openFeedback(); };
+  const r = $('#mReset', m);
+  r.onclick = () => {
+    if (r.dataset.sure !== '1') { r.dataset.sure = '1'; r.textContent = '모든 광석·스킬·카드가 지워져요. 한 번 더 누르면 처음부터'; r.style.borderColor = 'var(--ember)'; return; }
+    m.remove(); newGame(true);
+  };
+}
+function openHelp() {
+  const m = modal(`<h2>게임 방법</h2><div style="font-size:14px;display:flex;flex-direction:column;gap:8px;margin-top:10px">
+    <p style="margin:0"><b>채굴</b> — 채굴을 시작하면 바위가 솟아나요. 마우스를 바위 위에 올려 두면 고리 안의 바위를 곡괭이가 저절로 캐요. 클릭할 필요는 없어요.</p>
+    <p style="margin:0"><b>스킬 트리</b> — 캔 광석으로 능력을 올려요. 가운데 기둥을 열면 더 깊은 광석이 나와요. 한 층 더 내려가면 지난 광석의 「숙련」이 열려서, 남는 광석으로 공격력을 끝없이 올릴 수 있어요.</p>
+    <p style="margin:0"><b>곡괭이</b> — 새 광석으로 더 센 곡괭이를 만들어요. 보석으로 강화할 수 있어요.</p>
+    <p style="margin:0"><b>재능</b> — 레벨이 오를 때마다 카드 셋 중 하나를 골라요. 대신 바위가 조금씩 단단해져요.</p>
+    <p style="margin:0"><b>목표</b> — 가장 깊은 곳의 「광산의 심장」을 깨면 클리어! 새 게임부터 깰 때까지의 시간으로 랭킹이 매겨져요.</p>
+    <p style="margin:0" class="muted">단축키: Space 채굴 시작·다시 캐기 · Esc 그만 캐기·캠프로 · 1~3 재능 카드 고르기 · M 소리</p></div>
+    <div class="row"><button class="btn lamp" id="hOk">알겠어요</button></div>`);
+  $('#hOk', m).onclick = () => m.remove();
+}
+function openFeedback() {
+  let kind = 'idea';
+  const m = modal(`<h2>의견 보내기</h2><div class="seg" style="margin-top:10px"><button class="btn" data-k="idea" aria-pressed="true">의견</button><button class="btn" data-k="bug" aria-pressed="false">고장 신고</button></div>
+    <textarea id="fbText" maxlength="2000" placeholder="좋았던 점, 바라는 점, 이상한 점을 적어 주세요"></textarea>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">고장 신고에는 지금 게임 상태(광석·스킬)가 같이 가요.</p>
+    <div class="row"><button class="btn" id="fbNo">닫기</button><button class="btn lamp" id="fbGo">보내기</button></div>`);
+  m.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => { kind = b.dataset.k; m.querySelectorAll('[data-k]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+  $('#fbNo', m).onclick = () => m.remove();
+  $('#fbGo', m).onclick = async () => {
+    const text = $('#fbText', m).value.trim();
+    if (!text) { toast('내용을 적어 주세요'); return; }
+    const ctx = kind === 'bug' ? { state: { ...S, run: S.run ? { id: S.run.id } : null } } : null;
+    const r = await api('/api/feedback', { kind, text, context: ctx }).catch(() => ({ error: '서버에 연결하지 못했어요' }));
+    if (r.error) { toast(r.error); return; }
+    m.remove(); toast('보냈어요. 고마워요!');
+  };
+}
+
+function newGame(ranked) {
+  S = MG.newState(Date.now());
+  lastResult = null; boardCache = null; cam = null; fogR = {}; seenFront = null;
+  save();
+  if (ranked) startRun().then(() => { save(); if (SERVER) loadBoard(); });
+  setTab('tree'); refresh();
+}
+
+// ── 테스트 모드 (이스터 에그: 왼쪽 위 '한판 광산'을 빠르게 7번 누르기) ──
+let eggN = 0, eggT = 0;
+$('.brand').addEventListener('click', () => {
+  const now = Date.now();
+  eggN = now - eggT < 700 ? eggN + 1 : 1;
+  eggT = now;
+  const b = $('.brand'); b.classList.remove('spin'); void b.offsetWidth;
+  if (eggN >= 3 && eggN < 7) toast(TEST.on ? `테스트 모드를 닫기까지 ${7 - eggN}번` : `곡괭이가 흔들려요… ${7 - eggN}번 더`);
+  if (eggN >= 7) { eggN = 0; b.classList.add('spin'); if (TEST.on) exitTest(); else enterTest(); }
+});
+function enterTest() {
+  if (sess) { toast('채굴이 끝난 뒤에 열 수 있어요'); return; }
+  save(); // 진짜 게임 저장
+  let t = null;
+  try { const raw = localStorage.getItem(SAVE_KEY + ':test'); if (raw) t = MG.fix(JSON.parse(raw)); } catch (e) { /* 없음 */ }
+  TEST.on = true;
+  S = t || testCopy();
+  resetMapView();
+  sfx('clear');
+  toast('테스트 모드가 열렸어요. 진짜 게임과 따로 저장되고 랭킹에는 안 올라가요');
+  drawTest(); refresh();
+}
+function testCopy() {
+  let real = null;
+  try { real = MG.fix(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch (e) { real = null; }
+  const t = JSON.parse(JSON.stringify(real || S));
+  t.run = null; t.runResult = null; t.runError = null;
+  return t;
+}
+function exitTest() {
+  if (sess) { toast('채굴이 끝난 뒤에 닫을 수 있어요'); return; }
+  save();
+  TEST.on = false; TEST.speed = 1; TEST.oneHit = TEST.endless = TEST.noFog = false;
+  S = load() || MG.newState(Date.now());
+  shown.ores = []; shown.gems = -1; lastResult = null;
+  resetMapView();
+  toast('진짜 게임으로 돌아왔어요');
+  drawTest(); refresh();
+}
+function resetMapView() { cam = null; fogR = {}; seenFront = null; shown.ores = []; shown.gems = -1; }
+function testDo(what) {
+  const all = () => MG.TIERS.map((_, t) => t);
+  switch (what) {
+    case 'ore': all().forEach((t) => { S.ores[t] += 1000; S.total[t] += 1000; }); break;
+    case 'ore10': all().forEach((t) => { S.ores[t] = Math.max(1000, S.ores[t]) * 10; }); break;
+    case 'gem': S.gems += 50; break;
+    case 'depth': { const d = MG.depthOf(S); if (d < 9) { S.skills['d' + (d + 1)] = 1; } else if (!S.heartOpen) { S.skills.heart = 1; S.heartOpen = true; } break; }
+    case 'depthAll': for (let t = 0; t < 10; t++) S.skills['d' + t] = 1; break;
+    case 'skills': for (const n of MG.NODES) if (n.k !== 'heart') S.skills[n.id] = n.max === Infinity ? Math.max(20, MG.lvOf(S, n.id)) : n.max; break;
+    case 'picks': { const d = MG.depthOf(S); MG.PICKS.forEach((p) => { const mt = Math.max(0, ...Object.keys(p.cost).map(Number)); if (mt <= d && !S.picks.own.includes(p.id)) S.picks.own.push(p.id); }); S.picks.eq = S.picks.own[S.picks.own.length - 1]; break; }
+    case 'level': MG.addXp(S, MG.xpNeed(S.level) - S.xp); break;
+    case 'heart': S.skills.heart = 1; S.heartOpen = true; S.cleared = false; S.heartHp = Math.min(S.heartHp, 1000); break;
+    case 'heartFull': S.heartHp = MG.HEART.hp; S.cleared = false; S.clearAt = null; break;
+    case 'idle': { const got = MG.idle(S, 3600); toast('자동 광산 1시간: ' + (got.map((n, t) => (n ? `${T[t].name} ${MG.fmt(n)}` : '')).filter(Boolean).join(', ') || '없음 (자동 광산을 먼저 여세요)')); break; }
+    case 'copy': S = testCopy(); resetMapView(); toast('진짜 게임 상태를 다시 가져왔어요'); break;
+    case 'fresh': S = MG.newState(Date.now()); resetMapView(); toast('테스트판을 처음부터 시작해요'); break;
+  }
+  save(); refresh(); drawTest();
+}
+let tpPos = null;
+function drawTest() {
+  $('#testBadge').hidden = !TEST.on;
+  let p = $('#testPanel');
+  if (!TEST.on) { if (p) p.remove(); return; }
+  const min = p && p.classList.contains('min');
+  if (!p) { p = el('section', 'testpanel'); p.id = 'testPanel'; document.body.append(p); }
+  const tg = (k, label) => `<button class="btn" data-tg="${k}" aria-pressed="${!!TEST[k]}">${label}</button>`;
+  p.innerHTML = `<header><b>테스트 모드</b><button data-a="min">${min ? '펼치기' : '접기'}</button><button data-a="exit">나가기</button></header>
+  <div class="tp-body">
+    <div><h4>광석·보석</h4><div class="tp-row"><button class="btn" data-do="ore">모든 광석 +1000</button><button class="btn" data-do="ore10">×10</button><button class="btn" data-do="gem">보석 +50</button><button class="btn" data-do="idle">자동 광산 1시간</button></div></div>
+    <div><h4>진행</h4><div class="tp-row"><button class="btn" data-do="depth">다음 광맥 열기</button><button class="btn" data-do="depthAll">광맥 모두</button><button class="btn" data-do="skills">스킬 모두 최대</button><button class="btn" data-do="picks">곡괭이 모두</button><button class="btn" data-do="level">레벨 +1</button></div></div>
+    <div><h4>광산의 심장</h4><div class="tp-row"><button class="btn" data-do="heart">체력 1000으로</button><button class="btn" data-do="heartFull">처음 체력으로</button></div></div>
+    <div><h4>채굴</h4><div class="tp-row">${tg('oneHit', '한 방에 깨기')}${tg('endless', '시간 무한')}</div>
+      <div class="tp-row" style="margin-top:5px">${[1, 2, 4].map((v) => `<button class="btn" data-sp="${v}" aria-pressed="${TEST.speed === v}">속도 ×${v}</button>`).join('')}</div></div>
+    <div><h4>스킬 지도</h4><div class="tp-row">${tg('noFog', '안개 걷기')}</div></div>
+    <div><h4>테스트판</h4><div class="tp-row"><button class="btn" data-do="copy">진짜 게임 상태 가져오기</button><button class="btn" data-do="fresh">처음부터</button></div>
+      <p class="tp-note" style="margin-top:6px">여기서 한 것은 진짜 게임과 따로 저장돼요. 다시 열면 이어져요. 랭킹에는 올라가지 않아요. 나가려면 「나가기」나 로고 7번.</p></div>
+  </div>`;
+  if (min) p.classList.add('min');
+  if (tpPos) { p.style.left = tpPos.x + 'px'; p.style.top = tpPos.y + 'px'; }
+  p.querySelectorAll('[data-do]').forEach((b) => (b.onclick = () => { sfx('buy'); testDo(b.dataset.do); }));
+  p.querySelectorAll('[data-tg]').forEach((b) => (b.onclick = () => {
+    TEST[b.dataset.tg] = !TEST[b.dataset.tg];
+    if (b.dataset.tg === 'noFog') { seenFront = null; if (tab === 'tree' && !sess) renderView(); }
+    if (sess && b.dataset.tg === 'endless' && TEST.endless) sess.timeLeft = 1e9;
+    if (sess && b.dataset.tg === 'endless' && !TEST.endless) sess.timeLeft = Math.min(sess.timeLeft, sess.st.time);
+    drawTest();
+  }));
+  p.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { TEST.speed = +b.dataset.sp; drawTest(); }));
+  p.querySelector('[data-a="exit"]').onclick = exitTest;
+  p.querySelector('[data-a="min"]').onclick = () => { p.classList.toggle('min'); drawTest(); };
+  // 머리를 끌어서 옮기기
+  const hd = p.querySelector('header');
+  hd.onpointerdown = (e) => {
+    if (e.target.closest('button')) return;
+    const r = p.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+    hd.setPointerCapture(e.pointerId);
+    hd.onpointermove = (ev) => { tpPos = { x: Math.max(0, Math.min(innerWidth - 80, ev.clientX - ox)), y: Math.max(0, Math.min(innerHeight - 40, ev.clientY - oy)) }; p.style.left = tpPos.x + 'px'; p.style.top = tpPos.y + 'px'; };
+    hd.onpointerup = () => { hd.onpointermove = null; };
+  };
+}
+$('#testBadge').onclick = () => { const p = $('#testPanel'); if (p) { p.classList.remove('min'); drawTest(); } };
+
+// ── 시작 ─────────────────────────────────────────
+function boot() {
+  buildBag(); drawSoundBtn();
+  S = load();
+  let fresh = false;
+  if (!S) { S = MG.newState(Date.now()); fresh = true; save(); }
+  // 꺼 둔 동안 자동 광산
+  const away = Math.min(8 * 3600, (Date.now() - (S.lastSeen || Date.now())) / 1000);
+  if (away > 60 && MG.stats(S).mine) {
+    const got = MG.idle(S, away);
+    const txt = got.map((n, t) => (n ? `${T[t].name} ${MG.fmt(n)}` : '')).filter(Boolean).join(', ');
+    if (txt) setTimeout(() => toast(`자리를 비운 동안 자동 광산이 캤어요: ${txt}`), 400);
+  }
+  save();
+  setTab('tree');
+  refresh();
+  if (fresh) { if (SERVER) startRun(); setTimeout(openHelp, 300); }
+  if (SERVER) loadBoard();
+  if (S.cleared && S.run && (!S.runResult || S.runResult.retry)) reportClear();
+}
+document.querySelectorAll('.tab').forEach((b) => (b.onclick = () => { setTab(b.dataset.tab); if (b.dataset.tab === 'rank' && SERVER) loadBoard(); }));
+$('#goBtn').onclick = startSession;
+$('#menuBtn').onclick = openMenu;
+$('#soundBtn').onclick = () => { prefs.sound = !prefs.sound; savePrefs(); drawSoundBtn(); if (prefs.sound) sfx('buy'); };
+$('#narrowGo').onclick = () => $('#narrow').classList.add('dismissed');
+$('#view').addEventListener('scroll', hideTip);
+addEventListener('resize', () => { if (sess) { fit(); rockCache.clear(); } });
+addEventListener('keydown', (e) => {
+  if (e.target.closest && e.target.closest('input, textarea')) return;
+  if (document.querySelector('.modal')) { if (e.key === 'Escape') document.querySelector('.modal').remove(); return; }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!sess && !$('#camp').hidden) startSession();
+    else if (sess && sess.done && !$('#result').hidden) { closeMine(); startSession(); }
+  } else if (e.key === 'Escape') {
+    if (sess && !sess.done) { sess.over = true; endSessionNow(true); }
+    else if (sess && sess.done) toCamp();
+  } else if (/^[123]$/.test(e.key) && !sess && tab === 'talent' && S.pts > 0) takeCard(+e.key - 1);
+  else if (e.key === 'm' || e.key === 'M') $('#soundBtn').click();
+});
+// 1초마다: 자동 광산, 시계, 저장
+let lastIdle = Date.now(), lastSave = Date.now();
+setInterval(() => {
+  if (!S) return;
+  const now = Date.now();
+  if (document.visibilityState === 'visible') {
+    const got = MG.idle(S, Math.min(8 * 3600, (now - lastIdle) / 1000));
+    if (got.some((n) => n) && !sess) drawDots();
+    lastIdle = now;
+  }
+  drawTop();
+  const rk = $('#rkClock'); if (rk) rk.textContent = MG.fmtTime(runMs());
+  if (now - lastSave > 5000) { save(); lastSave = now; }
+}, 1000);
+addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(); else {
+  // 숨겨 둔 동안은 꺼 둔 것처럼 계산
+  const away = Math.min(8 * 3600, (Date.now() - lastIdle) / 1000);
+  if (away > 2) MG.idle(S, away);
+  lastIdle = Date.now();
+} });
+boot();
+</script>
+
+</body>
+</html>
