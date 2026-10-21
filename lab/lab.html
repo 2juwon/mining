@@ -1,0 +1,552 @@
+<title>광산 실험실</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@700;900&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 배치: 왼쪽 넓은 채굴장(WebGL) + 오른쪽 실험 손잡이 칸. 본 게임과 같은 갱도·등불 색 */
+:root {
+  --soot: #110e0c; --rock: #1c1714; --rock-2: #272019; --seam: #3d3229;
+  --dust: #a8967f; --parch: #f1e6d2; --lamp: #f2a541; --ember: #ff6a3d; --moss: #9bd17f;
+  --display: "Hahmlet", "Nanum Myeongjo", serif;
+  --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--soot); color: var(--parch); font: 13px/1.5 var(--body); overflow: hidden; }
+* { box-sizing: border-box; }
+#lab { height: 100%; display: grid; grid-template-columns: 1fr 300px; padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+#stage { position: relative; min-width: 0; overflow: hidden; background: #0b0908; cursor: none; touch-action: none; }
+#stage canvas { display: block; }
+.hud { position: absolute; left: 14px; top: 12px; pointer-events: none; text-shadow: 0 1px 6px #000; display: flex; flex-direction: column; gap: 6px; }
+.hud .title { font: 900 20px var(--display); color: var(--lamp); }
+.hud .title small { font: 500 12px var(--body); color: var(--dust); margin-left: 6px; }
+.meters { display: flex; gap: 14px; font-variant-numeric: tabular-nums; }
+.meters b { display: block; font: 900 22px var(--display); color: var(--parch); line-height: 1.1; }
+.meters span { color: var(--dust); font-size: 11px; }
+.meters .bad b { color: var(--ember); }
+.gains { display: flex; flex-wrap: wrap; gap: 4px; max-width: 520px; }
+.gains i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; background: rgba(28,23,20,.8); border-radius: 6px; padding: 1px 7px 1px 4px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.gains i::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--c); transform: rotate(45deg); }
+.combo { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); font: 900 34px var(--display); color: var(--lamp); text-shadow: 0 2px 14px rgba(0,0,0,.9); pointer-events: none; opacity: 0; transition: opacity .25s; white-space: nowrap; }
+.combo.on { opacity: 1; }
+.combo small { font: 700 14px var(--body); color: var(--parch); margin-left: 6px; }
+.panel { background: var(--rock); border-left: 1px solid var(--seam); overflow: auto; padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+.panel h1 { margin: 0; font: 900 20px var(--display); color: var(--lamp); }
+.panel p.note { margin: 0; color: var(--dust); font-size: 12px; }
+.ctl { display: flex; flex-direction: column; gap: 4px; }
+.ctl label { display: flex; justify-content: space-between; font-weight: 700; font-size: 12px; }
+.ctl label output { color: var(--lamp); font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { width: 100%; accent-color: var(--lamp); }
+.seg { display: flex; gap: 4px; flex-wrap: wrap; }
+.seg button, .btn { border: 1px solid var(--seam); background: var(--rock-2); color: var(--parch); border-radius: 8px; padding: 6px 10px; font: 700 12px var(--body); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--lamp); color: #2a1606; border-color: var(--lamp); }
+.btn.big { padding: 10px; font-size: 14px; }
+.btn.hot { background: var(--ember); border-color: var(--ember); color: #fff; }
+.btn:focus-visible, .seg button:focus-visible, input:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+.stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 12px; font-variant-numeric: tabular-nums; background: var(--soot); border: 1px solid var(--seam); border-radius: 10px; padding: 8px 10px; }
+.stats span { color: var(--dust); }
+.stats b { text-align: right; font-weight: 500; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fail { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--dust); }
+@media (max-width: 760px) {
+  #lab { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; }
+  .panel { border-left: 0; border-top: 1px solid var(--seam); }
+  .gains { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .combo { transition: none; } }
+</style>
+
+<div id="lab">
+  <div id="stage">
+    <div class="hud">
+      <div class="title">광산 실험실<small>바위 수천 개 시험판 · 본 게임과 따로</small></div>
+      <div class="meters">
+        <div id="mFps"><b>–</b><span>프레임/초</span></div>
+        <div><b id="mAlive">0</b><span>바위</span></div>
+        <div><b id="mRate">0</b><span>깬 바위/초</span></div>
+        <div><b id="mTotal">0</b><span>깬 바위 합계</span></div>
+      </div>
+      <div class="gains" id="gains"></div>
+    </div>
+    <div class="combo" id="combo"></div>
+  </div>
+  <aside class="panel">
+    <h1>실험 손잡이</h1>
+    <p class="note">바위를 끝 무렵 5,000개까지 늘렸을 때 컴퓨터가 버티는지, 깨는 맛이 어떤지 보는 판이에요. 마우스를 채굴장 위에 올려 두면 캐요. 저장은 하지 않아요.</p>
+    <div class="ctl"><label for="cN">한 화면 바위 수 <output id="oN"></output></label><input type="range" id="cN" min="100" max="5000" step="100" value="2000"></div>
+    <div class="ctl"><label for="cRefill">다시 꽉 차기까지 <output id="oRefill"></output></label><input type="range" id="cRefill" min="0.2" max="5" step="0.1" value="1"></div>
+    <div class="ctl"><label for="cRad">고리 크기 <output id="oRad"></output></label><input type="range" id="cRad" min="30" max="400" step="5" value="130"></div>
+    <div class="ctl"><label for="cSwing">휘두르는 간격 <output id="oSwing"></output></label><input type="range" id="cSwing" min="0.05" max="1" step="0.05" value="0.25"></div>
+    <div class="ctl"><label>바위 단단함</label><div class="seg" id="sHits"><button data-v="1">한 방</button><button data-v="2" aria-pressed="true">두 방</button><button data-v="4">네 방</button><button data-v="8">여덟 방</button></div></div>
+    <div class="ctl"><label for="cBoom">깨질 때 폭발 확률 <output id="oBoom"></output></label><input type="range" id="cBoom" min="0" max="0.6" step="0.01" value="0.1"></div>
+    <div class="ctl"><label for="cBoomR">폭발 범위 <output id="oBoomR"></output></label><input type="range" id="cBoomR" min="20" max="200" step="5" value="70"></div>
+    <div class="ctl"><label for="cZap">때릴 때 번개 확률 <output id="oZap"></output></label><input type="range" id="cZap" min="0" max="0.5" step="0.01" value="0.05"></div>
+    <div class="ctl"><label>광석</label><div class="seg" id="sTier"><button data-v="0">돌만</button><button data-v="4">금층까지</button><button data-v="9" aria-pressed="true">모두 섞어서</button></div></div>
+    <div class="ctl"><label>파편 양</label><div class="seg" id="sQ"><button data-v="auto" aria-pressed="true">자동</button><button data-v="3">많이</button><button data-v="1.5">보통</button><button data-v="0.5">조금</button></div></div>
+    <div class="row2">
+      <button class="btn" id="bAuto">자동으로 휘두르기</button>
+      <button class="btn" id="bSound">소리 켜기</button>
+    </div>
+    <button class="btn big hot" id="bBoom">한꺼번에 와르르</button>
+    <div class="stats" id="stats"></div>
+    <p class="note">프레임이 50 아래로 떨어지면 '자동'이 파편 양을 줄여요. 아래 숫자를 알려 주시면 본 게임에 넣을 때 기준으로 쓸게요.</p>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pixi.js-legacy@7.4.2/dist/pixi-legacy.min.js"></script>
+<script>
+'use strict';
+const $ = (s) => document.querySelector(s);
+const TIERS = [
+  ['돌', '#48423c', '#8d8578', 1], ['구리', '#5f4c42', '#e0814a', 1.4], ['철', '#4d4b4c', '#c9cfd6', 1.9], ['은', '#4b5059', '#eef4ff', 2.5],
+  ['금', '#544636', '#ffc94a', 3.2], ['수정', '#3c4a5e', '#8fe0ff', 4], ['미스릴', '#334a47', '#7cf2cf', 5], ['아다만트', '#4a2f36', '#ff5f7e', 6.2],
+  ['흑요석', '#241d33', '#b28cff', 7.6], ['별철', '#2a2c3d', '#fff3b0', 9.2],
+].map(([name, rock, vein, hp]) => ({ name, rock, vein, hp, veinNum: parseInt(vein.slice(1), 16), rockNum: parseInt(rock.slice(1), 16) }));
+const CAP = 5000;              // 바위 최대
+const VAR = 8, CRACK = 4, CELL = 64; // 바위 모양 가지 수, 금 단계, 그림 칸 크기
+
+// ── 설정 ──
+const P = { N: 2000, refill: 1, rad: 130, swing: 0.25, hits: 2, boom: 0.1, boomR: 70, zap: 0.05, maxTier: 9, q: 'auto', auto: false, sound: false };
+let qMul = 1.5; // 파편 배수 (자동이면 프레임에 따라 바뀜)
+function bindRange(id, out, key, fmt) {
+  const el = $('#' + id), o = $('#' + out);
+  const set = () => { P[key] = +el.value; o.textContent = fmt(P[key]); };
+  el.addEventListener('input', set); set();
+}
+bindRange('cN', 'oN', 'N', (v) => v.toLocaleString('ko-KR') + '개');
+bindRange('cRefill', 'oRefill', 'refill', (v) => v.toFixed(1) + '초');
+bindRange('cRad', 'oRad', 'rad', (v) => v + 'px');
+bindRange('cSwing', 'oSwing', 'swing', (v) => v.toFixed(2) + '초');
+bindRange('cBoom', 'oBoom', 'boom', (v) => Math.round(v * 100) + '%');
+bindRange('cBoomR', 'oBoomR', 'boomR', (v) => v + 'px');
+bindRange('cZap', 'oZap', 'zap', (v) => Math.round(v * 100) + '%');
+function bindSeg(id, key, parse) {
+  const root = $('#' + id);
+  root.querySelectorAll('button').forEach((b) => (b.onclick = () => {
+    root.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    P[key] = parse(b.dataset.v);
+    if (key === 'q' && P.q !== 'auto') qMul = P.q;
+  }));
+}
+bindSeg('sHits', 'hits', Number);
+bindSeg('sTier', 'maxTier', Number);
+bindSeg('sQ', 'q', (v) => (v === 'auto' ? 'auto' : +v));
+$('#bAuto').onclick = () => { P.auto = !P.auto; $('#bAuto').textContent = P.auto ? '자동 멈추기' : '자동으로 휘두르기'; };
+$('#bSound').onclick = () => { P.sound = !P.sound; $('#bSound').textContent = P.sound ? '소리 끄기' : '소리 켜기'; if (P.sound) audio(); };
+
+// ── Pixi 준비 ──
+const stage = $('#stage');
+let app;
+try {
+  const forceCanvas = location.hash === '#canvas';
+  app = new PIXI.Application({ resizeTo: stage, backgroundColor: 0x0b0908, antialias: false, autoDensity: true, resolution: Math.min(2, window.devicePixelRatio || 1), powerPreference: 'high-performance', forceCanvas });
+} catch (e) {
+  stage.insertAdjacentHTML('beforeend', '<div class="fail">이 브라우저에서는 그림 엔진을 켜지 못했어요. 그래픽 가속이 꺼져 있는지 확인해 주세요.</div>');
+  throw e;
+}
+stage.prepend(app.view);
+const isGL = app.renderer.type === PIXI.RENDERER_TYPE.WEBGL;
+const glName = isGL ? 'WebGL ' + (app.renderer.context.webGLVersion || '') : '캔버스(느림)';
+
+// ── 그림 모음(아틀라스): 광석 10 × 모양 8 × 금 4단계 + 파편·고리 ──
+function rngOf(seed) { let a = seed >>> 0 || 1; return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function shade(hex, amt) { const n = parseInt(hex.slice(1), 16), f = (v) => Math.max(0, Math.min(255, v + amt)); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; }
+const COLS = 20, ROWS = Math.ceil((10 * VAR * CRACK) / COLS) + 1;
+const atlas = document.createElement('canvas'); atlas.width = COLS * CELL; atlas.height = ROWS * CELL;
+const ag = atlas.getContext('2d');
+function drawRock(cx, cy, t, v, stage4) {
+  const T = TIERS[t], r = rngOf(t * 1000 + v * 17 + 3), R = CELL * 0.4;
+  ag.save(); ag.translate(cx + CELL / 2, cy + CELL / 2);
+  const n = 8 + Math.floor(r() * 4), pts = [];
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + r() * 0.3, rr = R * (0.8 + r() * 0.28); pts.push([Math.cos(a) * rr, Math.sin(a) * rr * 0.92]); }
+  ag.beginPath(); pts.forEach(([x, y], i) => (i ? ag.lineTo(x, y) : ag.moveTo(x, y))); ag.closePath();
+  const gr = ag.createLinearGradient(-R, -R, R, R); gr.addColorStop(0, shade(T.rock, 40)); gr.addColorStop(0.55, T.rock); gr.addColorStop(1, shade(T.rock, -30));
+  ag.fillStyle = gr; ag.fill(); ag.lineWidth = 2.2; ag.strokeStyle = 'rgba(0,0,0,.6)'; ag.stroke();
+  ag.save(); ag.clip();
+  const vc = t === 0 ? 3 : 4 + Math.floor(r() * 3);
+  for (let i = 0; i < vc; i++) {
+    const a = r() * Math.PI * 2, d = r() * R * 0.55, x = Math.cos(a) * d, y = Math.sin(a) * d, s = R * (0.16 + r() * 0.16);
+    ag.fillStyle = T.vein; ag.globalAlpha = t === 0 ? 0.3 : 1;
+    ag.beginPath(); for (let j = 0; j < 5; j++) { const b = (j / 5) * Math.PI * 2 + r(); ag.lineTo(x + Math.cos(b) * s, y + Math.sin(b) * s); } ag.fill();
+    ag.globalAlpha = t === 0 ? 0.15 : 0.7; ag.fillStyle = '#fff'; ag.fillRect(x - s * 0.3, y - s * 0.4, s * 0.35, s * 0.25);
+  }
+  ag.globalAlpha = 1;
+  const hl = ag.createRadialGradient(-R * 0.4, -R * 0.5, 1, -R * 0.4, -R * 0.5, R);
+  hl.addColorStop(0, 'rgba(255,240,220,.25)'); hl.addColorStop(1, 'rgba(255,240,220,0)'); ag.fillStyle = hl; ag.fillRect(-R * 2, -R * 2, R * 4, R * 4);
+  // 금
+  ag.strokeStyle = 'rgba(8,5,3,.9)'; ag.lineWidth = 2; ag.lineCap = 'round';
+  for (let c = 0; c < stage4 * 2; c++) {
+    const a = r() * Math.PI * 2; let x = Math.cos(a) * R * 0.1, y = Math.sin(a) * R * 0.1;
+    ag.beginPath(); ag.moveTo(x, y);
+    for (let j = 0; j < 3; j++) { const b = a + (r() - 0.5) * 1.1; x += Math.cos(b) * R * 0.3; y += Math.sin(b) * R * 0.3; ag.lineTo(x, y); }
+    ag.stroke();
+  }
+  ag.restore(); ag.restore();
+}
+let k = 0;
+for (let t = 0; t < 10; t++) for (let v = 0; v < VAR; v++) for (let c = 0; c < CRACK; c++, k++) drawRock((k % COLS) * CELL, Math.floor(k / COLS) * CELL, t, v, c);
+// 마지막 줄: 파편(흰 네모), 빛 점, 고리, 번쩍임
+const FY = (ROWS - 1) * CELL;
+ag.fillStyle = '#fff'; ag.fillRect(4, FY + 4, 24, 24);
+const dot = ag.createRadialGradient(CELL + 32, FY + 32, 0, CELL + 32, FY + 32, 30); dot.addColorStop(0, 'rgba(255,255,255,1)'); dot.addColorStop(0.35, 'rgba(255,255,255,.6)'); dot.addColorStop(1, 'rgba(255,255,255,0)');
+ag.fillStyle = dot; ag.fillRect(CELL, FY, CELL, CELL);
+ag.strokeStyle = '#fff'; ag.lineWidth = 5; ag.beginPath(); ag.arc(CELL * 2 + 32, FY + 32, 27, 0, Math.PI * 2); ag.stroke();
+const base = PIXI.BaseTexture.from(atlas);
+const rockTex = [];
+k = 0;
+for (let t = 0; t < 10; t++) { rockTex[t] = []; for (let v = 0; v < VAR; v++) { rockTex[t][v] = []; for (let c = 0; c < CRACK; c++, k++) rockTex[t][v][c] = new PIXI.Texture(base, new PIXI.Rectangle((k % COLS) * CELL, Math.floor(k / COLS) * CELL, CELL, CELL)); } }
+const texChip = new PIXI.Texture(base, new PIXI.Rectangle(4, FY + 4, 24, 24));
+const texDot = new PIXI.Texture(base, new PIXI.Rectangle(CELL, FY, CELL, CELL));
+const texRing = new PIXI.Texture(base, new PIXI.Rectangle(CELL * 2, FY, CELL, CELL));
+
+// ── 장면 ──
+const world = new PIXI.Container(); app.stage.addChild(world);
+let bgSprite = null;
+function makeBg() {
+  const w = Math.ceil(app.screen.width), h = Math.ceil(app.screen.height);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), r = rngOf(7);
+  g.fillStyle = '#0d0a08'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 260; i++) { const x = r() * w, y = r() * h, s = 20 + r() * 90; g.fillStyle = `rgba(${40 + r() * 30},${32 + r() * 22},${26 + r() * 18},${0.25 + r() * 0.35})`; g.beginPath(); for (let k2 = 0; k2 < 7; k2++) { const a = (k2 / 7) * Math.PI * 2, rr = s * (0.5 + r() * 0.5); g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.6); } g.fill(); }
+  const fg = g.createRadialGradient(w / 2, h / 2, h * 0.1, w / 2, h / 2, Math.max(w, h) * 0.7); fg.addColorStop(0, '#3a2e24'); fg.addColorStop(0.7, '#1e1712'); fg.addColorStop(1, 'rgba(10,8,6,.9)');
+  g.fillStyle = fg; g.globalAlpha = 0.85; g.fillRect(0, 0, w, h); g.globalAlpha = 1;
+  for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(${150 + r() * 60},${120 + r() * 50},${90 + r() * 40},${0.04 + r() * 0.06})`; g.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 2); }
+  if (bgSprite) { bgSprite.texture.destroy(true); world.removeChild(bgSprite); }
+  bgSprite = new PIXI.Sprite(PIXI.Texture.from(c)); world.addChildAt(bgSprite, 0);
+}
+makeBg();
+const rockLayer = new PIXI.ParticleContainer(CAP, { vertices: true, position: true, uvs: true, tint: true, rotation: false });
+world.addChild(rockLayer);
+const PMAX = 16000;
+const partLayer = new PIXI.ParticleContainer(PMAX, { vertices: true, position: true, rotation: true, tint: true, uvs: false });
+partLayer.blendMode = PIXI.BLEND_MODES.NORMAL;
+world.addChild(partLayer);
+const fxLayer = new PIXI.Container(); world.addChild(fxLayer);
+const glowLayer = new PIXI.ParticleContainer(2000, { vertices: true, position: true, tint: true });
+glowLayer.blendMode = PIXI.BLEND_MODES.ADD;
+world.addChild(glowLayer);
+const gfx = new PIXI.Graphics(); world.addChild(gfx);
+
+// ── 바위 (슬롯 배열) ──
+const R = { x: new Float32Array(CAP), y: new Float32Array(CAP), hp: new Float32Array(CAP), max: new Float32Array(CAP), tier: new Uint8Array(CAP), v: new Uint8Array(CAP), alive: new Uint8Array(CAP), born: new Float32Array(CAP), kick: new Float32Array(CAP), crack: new Uint8Array(CAP), sp: [] };
+for (let i = 0; i < CAP; i++) { const s = new PIXI.Sprite(rockTex[0][0][0]); s.anchor.set(0.5); s.alpha = 0; s.x = -100; rockLayer.addChild(s); R.sp.push(s); }
+let free = []; for (let i = CAP - 1; i >= 0; i--) free.push(i);
+let alive = 0;
+let rockR = 10; // 바위 반지름 (바위 수에 따라)
+function sizeFor(N) {
+  const area = app.screen.width * app.screen.height * 0.9;
+  return Math.max(4.5, Math.min(24, Math.sqrt(area / N) * 0.38));
+}
+// 칸 나누기: 매 프레임 살아 있는 바위를 칸에 담아 둠 (근처만 찾기)
+const G = { size: 40, cols: 1, rows: 1, start: null, items: null };
+function buildGrid() {
+  G.size = Math.max(24, rockR * 4);
+  G.cols = Math.ceil(app.screen.width / G.size) + 1; G.rows = Math.ceil(app.screen.height / G.size) + 1;
+  const nc = G.cols * G.rows;
+  if (!G.count || G.count.length < nc + 1) { G.count = new Int32Array(nc + 1); G.start = new Int32Array(nc + 1); }
+  else { G.count.fill(0, 0, nc + 1); }
+  if (!G.items) G.items = new Int32Array(CAP);
+  const cellOf = (i) => Math.min(G.cols - 1, Math.max(0, (R.x[i] / G.size) | 0)) + Math.min(G.rows - 1, Math.max(0, (R.y[i] / G.size) | 0)) * G.cols;
+  for (let i = 0; i < CAP; i++) if (R.alive[i]) G.count[cellOf(i)]++;
+  let s = 0; for (let c = 0; c < nc; c++) { G.start[c] = s; s += G.count[c]; } G.start[nc] = s;
+  const fill = G.count; fill.fill(0, 0, nc);
+  for (let i = 0; i < CAP; i++) if (R.alive[i]) { const c = cellOf(i); G.items[G.start[c] + fill[c]++] = i; }
+}
+function forNear(x, y, rad, fn) {
+  const c0 = Math.max(0, ((x - rad) / G.size) | 0), c1 = Math.min(G.cols - 1, ((x + rad) / G.size) | 0);
+  const r0 = Math.max(0, ((y - rad) / G.size) | 0), r1 = Math.min(G.rows - 1, ((y + rad) / G.size) | 0);
+  const r2 = rad * rad;
+  for (let ry = r0; ry <= r1; ry++) for (let cx = c0; cx <= c1; cx++) {
+    const c = cx + ry * G.cols;
+    for (let k2 = G.start[c], e = G.start[c + 1]; k2 < e; k2++) {
+      const i = G.items[k2];
+      if (!R.alive[i]) continue;
+      const dx = R.x[i] - x, dy = R.y[i] - y;
+      if (dx * dx + dy * dy <= r2) fn(i);
+    }
+  }
+}
+function spawn(now) {
+  if (!free.length) return false;
+  const W = app.screen.width, H = app.screen.height;
+  const pad = rockR + 6;
+  let x = 0, y = 0, ok = false;
+  for (let t = 0; t < 4 && !ok; t++) {
+    x = pad + Math.random() * (W - pad * 2); y = pad + 70 + Math.random() * (H - pad * 2 - 70);
+    ok = true;
+    forNear(x, y, rockR * 1.7, () => { ok = false; });
+  }
+  if (!ok) return false;
+  const i = free.pop();
+  // 깊은 광석일수록 드물게
+  let t = 0; const mt = P.maxTier;
+  if (mt > 0) { const u = Math.random(); t = Math.min(mt, Math.floor(Math.pow(u, 0.75) * (mt + 1))); }
+  R.x[i] = x; R.y[i] = y; R.tier[i] = t; R.v[i] = (Math.random() * VAR) | 0;
+  R.max[i] = R.hp[i] = P.hits * (1 + t * 0.12); /* 깊은 광석은 조금 더 단단함 */ R.alive[i] = 1; R.born[i] = now; R.kick[i] = 0; R.crack[i] = 0;
+  const s = R.sp[i]; s.texture = rockTex[t][R.v[i]][0]; s.x = x; s.y = y; s.alpha = 1; s.tint = 0xffffff;
+  alive++;
+  return true;
+}
+function kill(i) {
+  R.alive[i] = 0; free.push(i); alive--;
+  const s = R.sp[i]; s.alpha = 0; s.x = -100;
+}
+
+// ── 파편 ──
+const PT = { x: new Float32Array(PMAX), y: new Float32Array(PMAX), vx: new Float32Array(PMAX), vy: new Float32Array(PMAX), life: new Float32Array(PMAX), ttl: new Float32Array(PMAX), sz: new Float32Array(PMAX), rot: new Float32Array(PMAX), vr: new Float32Array(PMAX), sp: [] };
+let pCount = 0; // 앞쪽 pCount개만 살아 있음
+for (let i = 0; i < PMAX; i++) { const s = new PIXI.Sprite(texChip); s.anchor.set(0.5); s.alpha = 0; s.x = -50; partLayer.addChild(s); PT.sp.push(s); }
+function chip(x, y, color, speed, size) {
+  if (pCount >= PMAX) return;
+  const i = pCount++, a = Math.random() * Math.PI * 2, v = (0.3 + Math.random()) * speed;
+  PT.x[i] = x; PT.y[i] = y; PT.vx[i] = Math.cos(a) * v; PT.vy[i] = Math.sin(a) * v - speed * 0.6;
+  PT.life[i] = 0; PT.ttl[i] = 0.35 + Math.random() * 0.45; PT.sz[i] = size * (0.6 + Math.random() * 0.8); PT.rot[i] = Math.random() * 6; PT.vr[i] = (Math.random() - 0.5) * 16;
+  const s = PT.sp[i]; s.tint = color; s.alpha = 1;
+}
+function swapP(a, b) {
+  for (const key of ['x', 'y', 'vx', 'vy', 'life', 'ttl', 'sz', 'rot', 'vr']) { const t = PT[key][a]; PT[key][a] = PT[key][b]; PT[key][b] = t; }
+  const ta = PT.sp[a].tint; PT.sp[a].tint = PT.sp[b].tint; PT.sp[b].tint = ta;
+}
+function stepParticles(dt) {
+  for (let i = 0; i < pCount; i++) {
+    PT.life[i] += dt;
+    if (PT.life[i] >= PT.ttl[i]) { pCount--; if (i !== pCount) { swapP(i, pCount); i--; } const s = PT.sp[pCount]; s.alpha = 0; s.x = -50; continue; }
+    PT.vy[i] += 900 * dt; PT.x[i] += PT.vx[i] * dt; PT.y[i] += PT.vy[i] * dt; PT.rot[i] += PT.vr[i] * dt;
+  }
+  for (let i = 0; i < pCount; i++) {
+    const s = PT.sp[i], p = PT.life[i] / PT.ttl[i];
+    s.x = PT.x[i]; s.y = PT.y[i]; s.rotation = PT.rot[i]; s.scale.set(PT.sz[i] / 24); s.alpha = 1 - p * p;
+  }
+}
+// 빛 점 (번쩍임)
+const GL = { n: 0, max: 2000, x: new Float32Array(2000), y: new Float32Array(2000), life: new Float32Array(2000), ttl: new Float32Array(2000), sz: new Float32Array(2000), sp: [] };
+for (let i = 0; i < GL.max; i++) { const s = new PIXI.Sprite(texDot); s.anchor.set(0.5); s.alpha = 0; glowLayer.addChild(s); GL.sp.push(s); }
+let glowBudget = 0;
+function glow(x, y, size, color, ttl) {
+  if (GL.n >= GL.max || glowBudget-- <= 0) return;
+  const i = GL.n++; GL.x[i] = x; GL.y[i] = y; GL.life[i] = 0; GL.ttl[i] = ttl; GL.sz[i] = size; GL.sp[i].tint = color;
+}
+function stepGlow(dt) {
+  for (let i = 0; i < GL.n; i++) {
+    GL.life[i] += dt;
+    if (GL.life[i] >= GL.ttl[i]) { GL.n--; for (const key of ['x', 'y', 'life', 'ttl', 'sz']) GL[key][i] = GL[key][GL.n]; GL.sp[i].tint = GL.sp[GL.n].tint; GL.sp[GL.n].alpha = 0; i--; continue; }
+    const s = GL.sp[i], p = GL.life[i] / GL.ttl[i];
+    s.x = GL.x[i]; s.y = GL.y[i]; s.scale.set((GL.sz[i] / 64) * (0.6 + p * 0.8)); s.alpha = (1 - p) * 0.45;
+  }
+}
+// 폭발 고리 (보통 스프라이트, 몇 개만)
+const rings = [];
+function ring(x, y, rad) {
+  let s = rings.find((r2) => !r2.on);
+  if (!s) { if (rings.length > 120) return; s = new PIXI.Sprite(texRing); s.anchor.set(0.5); s.blendMode = PIXI.BLEND_MODES.ADD; fxLayer.addChild(s); rings.push(s); }
+  s.on = true; s.life = 0; s.rad = rad; s.x = x; s.y = y; s.tint = 0xffa04a; s.visible = true;
+}
+function stepRings(dt) {
+  for (const s of rings) {
+    if (!s.on) continue;
+    s.life += dt; const p = s.life / 0.32;
+    if (p >= 1) { s.on = false; s.visible = false; continue; }
+    s.scale.set((s.rad * (0.35 + p * 0.75)) / 27); s.alpha = (1 - p) * 0.7;
+  }
+}
+
+// ── 소리 ──
+let AC = null, master = null, noiseBuf = null;
+function audio() {
+  if (!P.sound) return null;
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.gain.value = 0.3; master.connect(AC.destination); noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.6, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } catch (e) { return null; } }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+let sndT = 0, sndN = 0, rumbleT = 0;
+function sndBreak(n, tier) {
+  const ac = audio(); if (!ac) return;
+  const now = ac.currentTime;
+  if (now - sndT > 0.05) { sndT = now; sndN = 0; }
+  if (n > 12 && now - rumbleT > 0.12) { // 와르르
+    rumbleT = now;
+    const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    src.buffer = noiseBuf; f.type = 'lowpass'; f.frequency.value = 500 + Math.min(n, 300) * 4;
+    const vol = Math.min(0.9, 0.25 + n / 200);
+    g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(vol, now + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    src.connect(f).connect(g).connect(master); src.start(now); src.stop(now + 0.4);
+  }
+  if (sndN++ > 2) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'triangle'; o.frequency.value = 800 + tier * 90 + Math.random() * 200;
+  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.18, now + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+  o.connect(g).connect(master); o.start(now); o.stop(now + 0.12);
+}
+
+// ── 게임 진행 ──
+let mouse = null, swingT = 0, tNow = 0, shake = 0;
+const booms = []; // 예약된 폭발 (연쇄가 물결처럼 퍼지게 조금씩 늦춤)
+const zaps = [];
+const gained = TIERS.map(() => 0), gainedRecent = TIERS.map(() => 0);
+let totalBroken = 0, brokenThisFrame = 0, rateWin = [], combo = 0, comboT = 0, comboMax = 0;
+stage.addEventListener('pointermove', (e) => { const r = stage.getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top }; });
+stage.addEventListener('pointerleave', () => { if (!P.auto) mouse = null; });
+function damage(i, d) {
+  if (!R.alive[i]) return;
+  R.hp[i] -= d; R.kick[i] = 1;
+  if (R.hp[i] <= 0) { breakRock(i); return; }
+  const c = Math.min(CRACK - 1, Math.floor((1 - R.hp[i] / R.max[i]) * CRACK + 0.25));
+  if (c !== R.crack[i]) { R.crack[i] = c; R.sp[i].texture = rockTex[R.tier[i]][R.v[i]][c]; }
+}
+function breakRock(i) {
+  const x = R.x[i], y = R.y[i], t = R.tier[i], T = TIERS[t];
+  kill(i);
+  totalBroken++; brokenThisFrame++; gained[t]++; gainedRecent[t]++;
+  const n = Math.max(1, Math.round((2 + t * 0.4) * qMul * Math.max(0.5, rockR / 12)));
+  for (let k2 = 0; k2 < n; k2++) chip(x, y, k2 % 2 ? T.rockNum : T.veinNum, 90 + rockR * 9, Math.max(2, rockR * 0.45));
+  if (qMul >= 1 || Math.random() < qMul) glow(x, y, rockR * 3.5, T.veinNum, 0.25);
+  if (P.boom && Math.random() < P.boom) booms.push({ x, y, t: tNow + 0.06 + Math.random() * 0.05 });
+}
+function swing(cx, cy) {
+  const hit = [];
+  forNear(cx, cy, P.rad, (i) => hit.push(i));
+  for (const i of hit) {
+    damage(i, 1);
+    if (P.zap && Math.random() < P.zap) {
+      // 근처(250px) 아무 바위로 번개
+      const cand = [];
+      forNear(R.x[i], R.y[i], 250, (j) => { if (j !== i && cand.length < 40) cand.push(j); });
+      if (cand.length) { const j = cand[(Math.random() * cand.length) | 0]; zaps.push({ x1: R.x[i], y1: R.y[i], x2: R.x[j], y2: R.y[j], life: 0, seed: Math.random() * 1e6 }); damage(j, 3); }
+    }
+  }
+  return hit.length;
+}
+function doBooms() {
+  let n = 0;
+  for (let b = 0; b < booms.length && n < 600; b++) {
+    const bo = booms[b];
+    if (bo.t > tNow) continue;
+    booms.splice(b, 1); b--; n++;
+    ring(bo.x, bo.y, P.boomR); glow(bo.x, bo.y, P.boomR * 1.4, 0xff8a3a, 0.25);
+    shake = Math.min(14, shake + 0.6);
+    forNear(bo.x, bo.y, P.boomR, (i) => damage(i, 3));
+  }
+  if (booms.length > 4000) booms.splice(0, booms.length - 4000);
+}
+function bigBoom() {
+  const W = app.screen.width, H = app.screen.height;
+  for (let k2 = 0; k2 < 30; k2++) booms.push({ x: Math.random() * W, y: 70 + Math.random() * (H - 70), t: tNow + k2 * 0.03 });
+}
+$('#bBoom').onclick = bigBoom;
+
+// ── 매 프레임 ──
+let fpsAvg = 60, calcMs = 0, lowT = 0, highT = 0;
+const labels = [];
+let labelT = 0;
+function floatLabel(text, x, y, color, big) {
+  let L = labels.find((l) => !l.on);
+  if (!L) {
+    if (labels.length > 14) return;
+    L = new PIXI.Text('', { fontFamily: 'Hahmlet, serif', fontWeight: '900', fontSize: 22, fill: 0xffffff, stroke: 0x000000, strokeThickness: 5 });
+    L.anchor.set(0.5); world.addChild(L); labels.push(L);
+  }
+  L.text = text; L.style.fill = color; L.style.fontSize = big ? 30 : 20; L.x = x; L.y = y; L.on = true; L.life = 0; L.visible = true;
+}
+function stepLabels(dt) { for (const L of labels) { if (!L.on) continue; L.life += dt; L.y -= 40 * dt; L.alpha = Math.min(1, 2.5 * (1 - L.life / 1.1)); if (L.life > 1.1) { L.on = false; L.visible = false; } } }
+
+let autoA = 0;
+app.ticker.add(() => {
+  const dt = Math.min(0.05, app.ticker.deltaMS / 1000);
+  tNow += dt;
+  const t0 = performance.now();
+  // 바위 수에 맞춰 크기
+  const want = sizeFor(P.N);
+  if (Math.abs(want - rockR) > 0.2) rockR = want;
+  buildGrid();
+  // 너무 많으면 줄이기 (손잡이를 낮췄을 때)
+  if (alive > P.N) { let over = alive - P.N; for (let i = 0; i < CAP && over > 0; i++) if (R.alive[i]) { kill(i); over--; } }
+  // 다시 생기기
+  let need = P.N - alive;
+  if (need > 0) {
+    const per = Math.max(1, Math.ceil((P.N / P.refill) * dt));
+    const n = Math.min(need, per);
+    for (let k2 = 0; k2 < n * 2 && need > 0; k2++) if (spawn(tNow)) need--;
+  }
+  // 자동 휘두르기: 채굴장을 8자로 돌아다님
+  if (P.auto) { autoA += dt * 0.6; const W = app.screen.width, H = app.screen.height; mouse = { x: W / 2 + Math.sin(autoA) * W * 0.38, y: 70 + (H - 70) / 2 + Math.sin(autoA * 2) * (H - 70) * 0.36 }; }
+  brokenThisFrame = 0; glowBudget = 30; // 한 프레임에 번쩍임은 30개까지 (너무 하얘지지 않게)
+  swingT -= dt;
+  let swung = false;
+  if (swingT <= 0) { swingT += P.swing; if (swingT < 0) swingT = P.swing; if (mouse) { swing(mouse.x, mouse.y); swung = true; } }
+  doBooms();
+  calcMs = calcMs * 0.9 + (performance.now() - t0) * 0.1;
+  // 그림 갱신
+  const scaleBase = (rockR * 2.5) / CELL;
+  for (let i = 0; i < CAP; i++) {
+    if (!R.alive[i]) continue;
+    const s = R.sp[i], age = tNow - R.born[i];
+    let sc = scaleBase;
+    if (age < 0.15) sc *= 0.4 + 0.6 * (age / 0.15);
+    if (R.kick[i] > 0) { sc *= 1 + R.kick[i] * 0.12; R.kick[i] = Math.max(0, R.kick[i] - dt * 8); s.tint = R.kick[i] > 0.5 ? 0xffe0c0 : 0xffffff; }
+    s.scale.set(sc);
+    s.x = R.x[i]; s.y = R.y[i];
+  }
+  stepParticles(dt); stepGlow(dt); stepRings(dt); stepLabels(dt);
+  // 고리·번개
+  gfx.clear();
+  if (mouse) {
+    const prog = 1 - Math.max(0, swingT) / P.swing;
+    gfx.lineStyle(2, 0xf2a541, 0.25).drawCircle(mouse.x, mouse.y, P.rad);
+    gfx.lineStyle(3, 0xffd696, 0.9).arc(mouse.x, mouse.y, P.rad, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+    gfx.lineStyle(0).beginFill(0xffe2b0).drawCircle(mouse.x, mouse.y, 2.5).endFill();
+    if (swung) glow(mouse.x, mouse.y, P.rad * 2.4, 0xffc070, 0.18);
+  }
+  for (let z = 0; z < zaps.length; z++) {
+    const Z = zaps[z]; Z.life += dt;
+    if (Z.life > 0.15) { zaps.splice(z, 1); z--; continue; }
+    const r = rngOf(Z.seed + ((Z.life * 60) | 0));
+    gfx.lineStyle(2, 0xd8f2ff, 1 - Z.life / 0.15).moveTo(Z.x1, Z.y1);
+    for (let q = 1; q < 6; q++) gfx.lineTo(Z.x1 + (Z.x2 - Z.x1) * q / 6 + (r() - 0.5) * 20, Z.y1 + (Z.y2 - Z.y1) * q / 6 + (r() - 0.5) * 20);
+    gfx.lineTo(Z.x2, Z.y2);
+  }
+  if (zaps.length > 300) zaps.splice(0, zaps.length - 300);
+  // 흔들림
+  shake *= 0.85;
+  world.x = shake > 0.3 ? (Math.random() - 0.5) * shake : 0; world.y = shake > 0.3 ? (Math.random() - 0.5) * shake : 0;
+  // 소리·묶음 글자·연속
+  if (brokenThisFrame) { sndBreak(brokenThisFrame, 3); combo += brokenThisFrame; comboT = 0.8; if (brokenThisFrame > 25) shake = Math.min(14, shake + brokenThisFrame / 25); }
+  comboT -= dt; if (comboT <= 0 && combo) { comboMax = Math.max(comboMax, combo); combo = 0; }
+  labelT -= dt;
+  if (labelT <= 0) {
+    labelT = 0.3;
+    const sum = gainedRecent.reduce((a, b) => a + b, 0);
+    if (sum && mouse) {
+      const top = gainedRecent.map((n, t) => [n, t]).filter((a) => a[0]).sort((a, b) => b[1] - a[1])[0];
+      floatLabel(`+${sum.toLocaleString('ko-KR')}`, mouse.x + (Math.random() - 0.5) * 40, mouse.y - P.rad * 0.6, TIERS[top[1]].vein, sum > 80);
+    }
+    gainedRecent.fill(0);
+  }
+  rateWin.push([tNow, brokenThisFrame]);
+  // 프레임에 따라 파편 양 조절
+  fpsAvg = fpsAvg * 0.95 + app.ticker.FPS * 0.05;
+  if (P.q === 'auto') {
+    if (fpsAvg < 50) { lowT += dt; highT = 0; if (lowT > 0.8) { qMul = Math.max(0.25, qMul * 0.8); lowT = 0; } }
+    else if (fpsAvg > 58) { highT += dt; lowT = 0; if (highT > 2) { qMul = Math.min(3, qMul * 1.15); highT = 0; } }
+  }
+});
+
+// ── 숫자 표시 (4번/초) ──
+const gainsEl = $('#gains');
+setInterval(() => {
+  while (rateWin.length && rateWin[0][0] < tNow - 1) rateWin.shift();
+  const rate = rateWin.reduce((a, b) => a + b[1], 0);
+  const fps = Math.round(fpsAvg);
+  $('#mFps b').textContent = fps; $('#mFps').classList.toggle('bad', fps < 45);
+  $('#mAlive').textContent = alive.toLocaleString('ko-KR');
+  $('#mRate').textContent = rate.toLocaleString('ko-KR');
+  $('#mTotal').textContent = totalBroken.toLocaleString('ko-KR');
+  $('#combo').innerHTML = combo > 40 ? `와르르 ${combo.toLocaleString('ko-KR')}<small>연속</small>` : '';
+  $('#combo').classList.toggle('on', combo > 40);
+  gainsEl.innerHTML = gained.map((n, t) => (n ? `<i style="--c:${TIERS[t].vein}">${TIERS[t].name} ${n.toLocaleString('ko-KR')}</i>` : '')).join('');
+  $('#stats').innerHTML = `<span>그림 엔진</span><b>${glName}</b><span>계산 시간</span><b>${calcMs.toFixed(2)}ms/프레임</b><span>파편</span><b>${pCount.toLocaleString('ko-KR')} / ${PMAX.toLocaleString('ko-KR')}</b><span>파편 양</span><b>×${qMul.toFixed(2)}</b><span>바위 크기</span><b>지름 ${Math.round(rockR * 2)}px</b><span>최대 연속</span><b>${Math.max(comboMax, combo).toLocaleString('ko-KR')}</b><span>화면</span><b>${Math.round(app.screen.width)}×${Math.round(app.screen.height)} ×${app.renderer.resolution}</b>`;
+}, 250);
+addEventListener('resize', () => setTimeout(makeBg, 50));
+// 시험용 손잡이
+window.LAB = { P, get alive() { return alive; }, get fps() { return fpsAvg; }, get calcMs() { return calcMs; }, get particles() { return pCount; }, get broken() { return totalBroken; }, glName, bigBoom };
+</script>

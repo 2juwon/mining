@@ -22,3 +22,17 @@ const head = `<!doctype html>
 const cut = body.indexOf('</style>') + 8;
 fs.writeFileSync(__dirname + '/index.html', head + body.slice(0, cut) + '\n</head>\n<body>\n' + body.slice(cut) + '\n</body>\n</html>\n');
 console.log('index.html', fs.statSync(__dirname + '/index.html').size, 'bytes / dist/mine.html', fs.statSync(__dirname + '/dist/mine.html').size, 'bytes');
+
+// 광산 실험실 (WebGL 시험판): lab/lab.html → lab/index.html (Pages), dist/lab.html (아티팩트)
+const lab = fs.readFileSync(__dirname + '/lab/lab.html', 'utf8');
+fs.writeFileSync(__dirname + '/dist/lab.html', lab);
+const labCut = lab.indexOf('</style>') + 8;
+fs.writeFileSync(__dirname + '/lab/index.html', `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif}[hidden]{display:none!important}</style>
+` + lab.slice(0, labCut) + '\n</head>\n<body>\n' + lab.slice(labCut) + '\n</body>\n</html>\n');
+console.log('lab/index.html', fs.statSync(__dirname + '/lab/index.html').size, 'bytes');
