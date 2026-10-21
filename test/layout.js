@@ -1,4 +1,4 @@
-// 스킬 트리 지도 자리 구하기: node test/layout.js 0.6 110 0.5 0.5 → pos.json (src/engine.js의 MAP에 붙여 넣음). 교차선 0, 최소 간격 130 이상이면 통과
+// 스킬 트리 지도 자리 구하기: node test/layout.js 0.6 130 0.5 0.5 → pos.json (src/engine.js의 MAP에 붙여 넣음). 교차선 0, 최소 간격 130 이상이면 통과
 const MG = require('../src/engine.js');
 const N = MG.NODES, idx = Object.fromEntries(N.map((n, i) => [n.id, i]));
 // 처음 자리: 나선 기둥 + 바깥쪽 가지
