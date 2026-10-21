@@ -199,7 +199,7 @@
     return {
       v: VERSION,
       ores: TIERS.map(() => 0), gems: 0,
-      xp: 0, level: 1, pts: 0, cards: 0, talents: {}, offer: null,
+      xp: 0, level: 1, pts: 0, cards: 0, talents: {}, offer: null, offerLock: -1, rerolls: 0,
       skills: { d0: 1 },
       picks: { own: ['p0'], eq: 'p0', up: {} },
       heartHp: HEART.hp, heartOpen: false, cleared: false,
@@ -335,28 +335,51 @@
     while (s.xp >= xpNeed(s.level)) { s.xp -= xpNeed(s.level); s.level += 1; s.pts += 1; ups++; }
     return ups;
   }
+  const REROLLS = 2; // 카드 한 장 고를 때마다 다시 뽑기 횟수
+  function rollCard(pool, r) {
+    const c = pool.splice(Math.floor(r() * pool.length), 1)[0];
+    let x = r() * 100, rar = 0;
+    for (let i = 0; i < RAR.length; i++) { if (x < RAR[i].w) { rar = i; break; } x -= RAR[i].w; }
+    return c.id + ':' + rar;
+  }
   function drawOffer(s, r) {
     r = r || Math.random;
     const pool = CARDS.slice();
     const out = [];
-    while (out.length < 3 && pool.length) {
-      const c = pool.splice(Math.floor(r() * pool.length), 1)[0];
-      let x = r() * 100, rar = 0;
-      for (let i = 0; i < RAR.length; i++) { if (x < RAR[i].w) { rar = i; break; } x -= RAR[i].w; }
-      out.push(c.id + ':' + rar);
-    }
+    while (out.length < 3 && pool.length) out.push(rollCard(pool, r));
     return out;
   }
   function openOffer(s, r) {
     if (s.pts <= 0) return null;
-    if (!s.offer) s.offer = drawOffer(s, r);
+    if (!s.offer) { s.offer = drawOffer(s, r); s.rerolls = REROLLS; s.offerLock = -1; }
     return s.offer;
+  }
+  // 한 장을 고정(같은 칸을 다시 누르면 풀림). 고정은 한 장만
+  function lockCard(s, i) {
+    if (!s.offer || !s.offer[i]) return false;
+    s.offerLock = s.offerLock === i ? -1 : i;
+    return true;
+  }
+  // 다시 뽑기: 고정한 카드는 그대로, 나머지는 지금 보이는 카드와 다른 카드로
+  function reroll(s, r) {
+    r = r || Math.random;
+    if (!s.offer || s.pts <= 0 || (s.rerolls | 0) <= 0) return false;
+    const shown = s.offer.map((id) => id.split(':')[0]);
+    let pool = CARDS.filter((c) => !shown.includes(c.id));
+    const keep = s.offerLock >= 0 ? shown[s.offerLock] : null;
+    s.offer = s.offer.map((id, i) => {
+      if (i === s.offerLock) return id;
+      if (!pool.length) pool = CARDS.filter((c) => c.id !== keep);
+      return rollCard(pool, r);
+    });
+    s.rerolls -= 1;
+    return true;
   }
   function pickCard(s, i) {
     if (!s.offer || !s.offer[i] || s.pts <= 0) return false;
     const id = s.offer[i];
     s.talents[id] = (s.talents[id] | 0) + 1;
-    s.cards += 1; s.pts -= 1; s.offer = null;
+    s.cards += 1; s.pts -= 1; s.offer = null; s.offerLock = -1; s.rerolls = 0;
     return true;
   }
   function cardInfo(id) {
@@ -570,6 +593,7 @@
   function fix(s) {
     const d = newState();
     if (!s || typeof s !== 'object') return d;
+    if (s.offer && s.rerolls === undefined) s.rerolls = REROLLS; // 다시 뽑기 생기기 전 저장
     for (const k in d) if (s[k] === undefined) s[k] = d[k];
     while (s.ores.length < TIERS.length) s.ores.push(0);
     while (s.total.length < TIERS.length) s.total.push(0);
@@ -579,7 +603,7 @@
 
   const MG = { VERSION, W, H, TIERS, HEART, NODES, NODE, PICKS, PICK, PICK_UP_MAX, PICK_UP_V, pickUpCost, CARDS, RAR, CARD_HP,
     fmt, fmtTime, fillDesc, rng, newState, fix, stats, depthOf, lvOf, nodeCost, nodeState, buyNode, canPay,
-    pickState, craft, upgradePick, xpNeed, addXp, openOffer, pickCard, cardInfo, mineRates, idle,
+    pickState, craft, upgradePick, xpNeed, addXp, openOffer, pickCard, lockCard, reroll, REROLLS, cardInfo, mineRates, idle,
     newSession, step, endSession, liveRocks, near, BOOM_R };
   if (typeof module !== 'undefined' && module.exports) module.exports = MG;
   else root.MG = MG;

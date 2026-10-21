@@ -43,6 +43,30 @@ ok(MG.pickCard(s, 0) && s.pts === 0 && s.cards === 1 && !s.offer, '카드 고르
 ok(Math.abs(MG.stats(s).hpMul - (1 + MG.CARD_HP)) < 1e-9, '카드 한 장마다 바위 체력 오름');
 ok(!MG.pickCard(s, 0), '점수 없으면 못 고름');
 
+// 재능 카드 다시 뽑기·고정
+s = MG.newState(0); MG.addXp(s, MG.xpNeed(1) + MG.xpNeed(2) + 1);
+ok(s.pts === 2, '카드 2장 고를 수 있음');
+const o1 = MG.openOffer(s, MG.rng(11)).slice();
+ok(s.rerolls === MG.REROLLS && MG.REROLLS === 2 && s.offerLock === -1, '새 카드 3장마다 다시 뽑기 2번');
+ok(MG.lockCard(s, 1) && s.offerLock === 1, '가운데 카드 고정');
+ok(MG.lockCard(s, 2) && s.offerLock === 2, '다른 카드를 누르면 고정이 그쪽으로 (한 장만)');
+ok(MG.lockCard(s, 2) && s.offerLock === -1, '같은 카드를 다시 누르면 고정 풀림');
+MG.lockCard(s, 0);
+ok(MG.reroll(s, MG.rng(12)), '다시 뽑기 1번');
+ok(s.offer[0] === o1[0], '고정한 카드는 그대로');
+const ids = s.offer.map((x) => x.split(':')[0]), oldIds = o1.map((x) => x.split(':')[0]);
+ok(ids[1] !== oldIds[1] && ids[2] !== oldIds[2] && !oldIds.includes(ids[1]) && !oldIds.includes(ids[2]), '나머지는 보이던 카드와 다른 카드로');
+ok(new Set(ids).size === 3, '세 장은 서로 다름');
+ok(s.rerolls === 1, '남은 다시 뽑기 1번');
+MG.reroll(s, MG.rng(13));
+ok(s.rerolls === 0 && !MG.reroll(s, MG.rng(14)), '2번 쓰면 더는 못 함');
+ok(s.offer[0] === o1[0], '두 번째에도 고정 카드 그대로');
+MG.pickCard(s, 1);
+const o2 = MG.openOffer(s, MG.rng(15));
+ok(o2 && s.rerolls === 2 && s.offerLock === -1, '카드를 고르면 다음 카드 3장에 다시 뽑기 2번이 새로 생기고 고정은 풀림');
+const oldOffer = MG.fix({ ores: [0], skills: {}, picks: { own: ['p0'], eq: 'p0', up: {} }, pts: 1, offer: ['dmg:0', 'spd:0', 'rad:0'] });
+ok(oldOffer.rerolls === 2 && oldOffer.offerLock === -1, '예전 저장(카드가 떠 있던 상태)은 다시 뽑기 2번으로');
+
 // 채굴 한 판
 s = MG.newState(0);
 const r = MG.rng(9);
