@@ -91,7 +91,7 @@ function play(seed) {
     if (s.heartOpen && !marks.some((m) => m.startsWith('H'))) marks.push(`H:${(clock / 60).toFixed(0)}m`);
   }
   const st = MG.stats(s);
-  return { min: clock / 60, sessions: s.sessions, level: s.level, cards: s.cards, pick: s.picks.eq, dmg: st.dmg, time: st.time.toFixed(1), marks: marks.join(' ') , cleared: s.cleared};
+  return { min: clock / 60, sessions: s.sessions, level: s.level, cards: s.cards, pick: s.picks.eq, mast: MG.NODES.filter((n) => n.k === "mast").map((n) => MG.lvOf(s, n.id)).join("/"), dmg: st.dmg, time: st.time.toFixed(1), marks: marks.join(' ') , cleared: s.cleared};
 }
 
 const res = [];

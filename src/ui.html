@@ -108,6 +108,9 @@ h3 { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spac
 .mn.front.buy .lab .cost { color: var(--moss); }
 @keyframes ready { 0%, 100% { box-shadow: 0 0 0 3px rgba(155,209,127,.15), 0 0 12px rgba(155,209,127,.15); } 50% { box-shadow: 0 0 0 6px rgba(155,209,127,.22), 0 0 26px rgba(155,209,127,.3); } }
 .mn.front.locked { filter: grayscale(.7) brightness(.7); }
+.mn.mast { border-radius: 24px; width: 72px; height: 72px; background: radial-gradient(circle at 50% 30%, var(--tierRock, #2f2720), #120e0b 80%); }
+.mn.mast svg.ic { width: 26px; height: 26px; }
+.mn .mlv { font: 700 11px var(--body); color: var(--lamp); }
 .mn.ghost { width: 56px; height: 56px; border: 2px dashed rgba(200,180,150,.35); background: rgba(30,25,21,.6); color: rgba(220,200,170,.5); font: 900 22px var(--display); cursor: default; }
 .mn.ghost.spine { width: 76px; height: 76px; }
 .mn:not(.ghost):hover { filter: brightness(1.2); }
@@ -530,7 +533,7 @@ const tierOf = (n) => (n.k === 'heart' ? { rock: '#5a1420', vein: '#ff4f5e', nam
 function visOf(n) {
   if (MG.lvOf(S, n.id)) return 'own';
   if (TEST.noFog) return 'front';
-  if (n.req.every((r) => MG.lvOf(S, r) > 0)) return 'front';
+  if (n.req.every((r) => MG.lvOf(S, r) > 0)) return !n.after || MG.lvOf(S, n.after) ? 'front' : 'ghost';
   if (n.req.every((r) => MG.lvOf(S, r) > 0 || MG.NODE[r].req.every((q) => MG.lvOf(S, q) > 0))) return 'ghost';
   return 'hidden';
 }
@@ -664,7 +667,7 @@ function zoomAt(f, sx, sy) {
 }
 function nodeEffect(n, lv) {
   if (n.k === 'depth' || n.k === 'heart') return n.desc;
-  const f = { dmg: '공격력 +{p}%', spd: '간격 −{p}%', rad: '범위 +{n}', time: '+{n}초', rocks: '바위 +{n}', spawn: '생기는 속도 +{p}%', ore: '광석 +{p}%', crit: '치명타 +{p}%', critD: '치명타 피해 +{p}%', gem: '보석 +{p}%p', xp: '경험치 +{p}%', chain: '번개 {p}%', boom: '폭발 {p}%', sand: '+0.5초 {p}%', luck: '깊은 광석 +{p}', mine: '자동 광산 {n}단계' }[n.k];
+  const f = { mast: '공격력 +{p}%', dmg: '공격력 +{p}%', spd: '간격 −{p}%', rad: '범위 +{n}', time: '+{n}초', rocks: '바위 +{n}', spawn: '생기는 속도 +{p}%', ore: '광석 +{p}%', crit: '치명타 +{p}%', critD: '치명타 피해 +{p}%', gem: '보석 +{p}%p', xp: '경험치 +{p}%', chain: '번개 {p}%', boom: '폭발 {p}%', sand: '+0.5초 {p}%', luck: '깊은 광석 +{p}', mine: '자동 광산 {n}단계' }[n.k];
   return MG.fillDesc(f, n.v * lv);
 }
 function renderTree(v) {
@@ -696,27 +699,30 @@ function renderTree(v) {
     const vv = vis[n.id];
     if (vv === 'hidden') continue;
     const p = mp(n), tc = tierOf(n), lv = MG.lvOf(S, n.id), st = MG.nodeState(S, n.id);
-    const b = el('button', `mn ${vv}${n.col === 0 ? ' spine' : ''}${vv !== 'ghost' ? ' ' + st : ''}`);
+    const b = el('button', `mn ${vv}${n.col === 0 ? ' spine' : ''}${n.k === 'mast' && vv !== 'ghost' ? ' mast' : ''}${vv !== 'ghost' ? ' ' + st : ''}`);
     b.style.left = p.x + 'px'; b.style.top = p.y + 'px';
     b.style.setProperty('--tier', tc.vein); b.style.setProperty('--tierRock', tc.rock);
     b.dataset.id = n.id;
     if (vv === 'ghost') {
       b.textContent = '?'; b.setAttribute('aria-label', '안개 속 미지의 칸'); b.tabIndex = -1;
-      b.onmouseenter = b.onmousemove = (e) => showTip('<b>안개 속</b><div class="t-sub">무언가 있는 것 같아요. 이어진 칸을 열면 드러나요.</div>', e.clientX, e.clientY);
+      const waits = n.after && n.req.every((r) => MG.lvOf(S, r) > 0);
+      b.onmouseenter = b.onmousemove = (e) => showTip(waits ? `<b>안개 속</b><div class="t-sub">${esc(T[n.ct].name)}과 관련된 무언가가 있어요. 한 층 더 내려가면 드러나요.</div>` : '<b>안개 속</b><div class="t-sub">무언가 있는 것 같아요. 이어진 칸을 열면 드러나요.</div>', e.clientX, e.clientY);
       b.onmouseleave = hideTip;
       world.append(b); continue;
     }
     if (vv === 'front') { nowFront.add(n.id); if (!firstSeen && !seenFront.has(n.id)) b.classList.add('reveal'); }
     b.setAttribute('aria-label', `${n.name} ${lv}/${n.max}`);
     let pips = '';
-    if (n.max > 1) { pips = '<span class="pips">'; for (let i = 0; i < n.max; i++) pips += `<i class="${i < lv ? 'on' : ''}"></i>`; pips += '</span>'; }
+    if (n.max === Infinity) pips = `<span class="mlv num">Lv.${lv}</span>`;
+    else if (n.max > 1) { pips = '<span class="pips">'; for (let i = 0; i < n.max; i++) pips += `<i class="${i < lv ? 'on' : ''}"></i>`; pips += '</span>'; }
     const cost = st === 'max' ? '' : (() => { const c = MG.nodeCost(n, lv), t = Object.keys(c)[0]; return `<span class="cost num">${oreSvg(+t)}${MG.fmt(c[t])}${Object.keys(c).length > 1 ? ' …' : ''}</span>`; })();
-    b.innerHTML = icon(n.k === 'depth' ? (n.row ? 'depth' : 'dmg') : n.k) + pips + `<span class="lab">${esc(n.name)}${cost}</span>`;
+    b.innerHTML = (n.k === 'mast' ? oreSvg(n.ct).replace('<svg', '<svg class="ic"') : icon(n.k === 'depth' ? (n.row ? 'depth' : 'dmg') : n.k)) + pips + `<span class="lab">${esc(n.name)}${cost}</span>`;
     b.onmouseenter = b.onmousemove = (e) => {
       if (wrap.classList.contains('drag')) return;
       const L = MG.lvOf(S, n.id), c = MG.nodeCost(n, L);
       const now = n.max > 1 ? `<div class="t-sub">지금: ${L ? nodeEffect(n, L) : '없음'}${L < n.max ? ` → 다음: ${nodeEffect(n, L + 1)}` : ''}</div>` : '';
-      const html = `<b>${esc(n.name)}</b><div class="t-sub">${n.max > 1 ? `레벨 ${L}/${n.max} · ` : ''}${esc(n.k === 'depth' || n.k === 'heart' ? n.desc : MG.fillDesc(n.desc, n.v))}${n.max > 1 ? ' (레벨마다)' : ''}</div>${now}` +
+      const extra = n.k === 'mast' ? `<div class="t-sub">${esc(T[n.ct].name)}으로만 올려요. 레벨 끝없음, 숙련끼리는 공격력 보너스가 더해져요.</div>` : '';
+      const html = `<b>${esc(n.name)}</b>${extra}<div class="t-sub">${n.max === Infinity ? `레벨 ${L} · ` : n.max > 1 ? `레벨 ${L}/${n.max} · ` : ''}${esc(n.k === 'depth' || n.k === 'heart' ? n.desc : MG.fillDesc(n.desc, n.v))}${n.max > 1 ? ' (레벨마다)' : ''}</div>${now}` +
         (MG.nodeState(S, n.id) === 'max' ? '<div class="t-sub" style="color:#f2a541">다 올렸어요</div>' : `<div class="t-cost">${costHtml(c, S)}</div>`);
       showTip(html, e.clientX, e.clientY);
     };
@@ -945,6 +951,7 @@ function renderSide() {
       ${st.chain ? `<span>번개</span><b>${Math.round(st.chain * 100)}%</b>` : ''}
       ${st.boom ? `<span>폭발</span><b>${Math.round(st.boom * 100)}%</b>` : ''}
       ${st.sand ? `<span>시간의 모래</span><b>${Math.round(st.sand * 100)}%</b>` : ''}
+      ${st.mast ? `<span>광석 숙련</span><b>공격력 +${+(st.mast * 100).toFixed(1)}%</b>` : ''}
       <span>바위 체력</span><b>×${st.hpMul.toFixed(2)}</b>
     </div></div>
     <div><h3>자동 광산</h3><div class="minebox">${mineTxt}</div></div>
@@ -1414,7 +1421,7 @@ function openMenu() {
 function openHelp() {
   const m = modal(`<h2>게임 방법</h2><div style="font-size:14px;display:flex;flex-direction:column;gap:8px;margin-top:10px">
     <p style="margin:0"><b>채굴</b> — 채굴을 시작하면 바위가 솟아나요. 마우스를 바위 위에 올려 두면 고리 안의 바위를 곡괭이가 저절로 캐요. 클릭할 필요는 없어요.</p>
-    <p style="margin:0"><b>스킬 트리</b> — 캔 광석으로 능력을 올려요. 가운데 기둥을 열면 더 깊은 광석이 나와요.</p>
+    <p style="margin:0"><b>스킬 트리</b> — 캔 광석으로 능력을 올려요. 가운데 기둥을 열면 더 깊은 광석이 나와요. 한 층 더 내려가면 지난 광석의 「숙련」이 열려서, 남는 광석으로 공격력을 끝없이 올릴 수 있어요.</p>
     <p style="margin:0"><b>곡괭이</b> — 새 광석으로 더 센 곡괭이를 만들어요. 보석으로 강화할 수 있어요.</p>
     <p style="margin:0"><b>재능</b> — 레벨이 오를 때마다 카드 셋 중 하나를 골라요. 대신 바위가 조금씩 단단해져요.</p>
     <p style="margin:0"><b>목표</b> — 가장 깊은 곳의 「광산의 심장」을 깨면 클리어! 새 게임부터 깰 때까지의 시간으로 랭킹이 매겨져요.</p>
@@ -1496,7 +1503,7 @@ function testDo(what) {
     case 'gem': S.gems += 50; break;
     case 'depth': { const d = MG.depthOf(S); if (d < 9) { S.skills['d' + (d + 1)] = 1; } else if (!S.heartOpen) { S.skills.heart = 1; S.heartOpen = true; } break; }
     case 'depthAll': for (let t = 0; t < 10; t++) S.skills['d' + t] = 1; break;
-    case 'skills': for (const n of MG.NODES) if (n.k !== 'heart') S.skills[n.id] = n.max; break;
+    case 'skills': for (const n of MG.NODES) if (n.k !== 'heart') S.skills[n.id] = n.max === Infinity ? Math.max(20, MG.lvOf(S, n.id)) : n.max; break;
     case 'picks': { const d = MG.depthOf(S); MG.PICKS.forEach((p) => { const mt = Math.max(0, ...Object.keys(p.cost).map(Number)); if (mt <= d && !S.picks.own.includes(p.id)) S.picks.own.push(p.id); }); S.picks.eq = S.picks.own[S.picks.own.length - 1]; break; }
     case 'level': MG.addXp(S, MG.xpNeed(S.level) - S.xp); break;
     case 'heart': S.skills.heart = 1; S.heartOpen = true; S.cleared = false; S.heartHp = Math.min(S.heartHp, 1000); break;

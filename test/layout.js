@@ -9,14 +9,18 @@ for (const n of N) if (n.col === 0) {
   const t = n.row, r = t === 0 ? 0 : 230 + (t - 1) * (+process.argv[3]);
   P[idx[n.id]].x = Math.cos(dirOf(t)) * r; P[idx[n.id]].y = Math.sin(dirOf(t)) * r;
 }
-for (const n of N) if (n.col !== 0) {
+for (const n of N) if (n.k === 'mast') {
+  const base = P[idx['d' + n.row]], ang = dirOf(n.row) + Math.PI;
+  P[idx[n.id]].x = base.x + Math.cos(ang) * 120; P[idx[n.id]].y = base.y + Math.sin(ang) * 120;
+}
+for (const n of N) if (n.col !== 0 && n.k !== 'mast') {
   const side = Math.sign(n.col), k = Math.abs(n.col);
   let ang = n.row === 0 ? a0 + Math.PI + side * 0.9 : dirOf(n.row) + (side < 0 ? -(+process.argv[4]) : +process.argv[5]);
   const base = P[idx['d' + n.row]];
   P[idx[n.id]].x = base.x + Math.cos(ang) * 130 * k; P[idx[n.id]].y = base.y + Math.sin(ang) * 130 * k;
 }
 const edges = [];
-for (const n of N) for (const r of n.req) edges.push([idx[r], idx[n.id], n.col === 0 ? 175 : 125]);
+for (const n of N) for (const r of n.req) edges.push([idx[r], idx[n.id], n.col === 0 ? 175 : n.k === 'mast' ? 115 : 125]);
 for (let it = 0; it < 4000; it++) {
   const F = P.map(() => ({ x: 0, y: 0 }));
   for (const [a, b, L] of edges) {

@@ -20,12 +20,13 @@
     { id: 'obsidian', name: '흑요석', hp: 280000, val: 10000, rock: '#241d33', vein: '#b28cff', r: 29 },
     { id: 'star', name: '별철', hp: 1200000, val: 30000, rock: '#2a2c3d', vein: '#fff3b0', r: 30 },
   ];
-  const HEART = { name: '광산의 심장', hp: 60000000, r: 64 };
+  const HEART = { name: '광산의 심장', hp: 150000000, r: 64 };
 
   // ── 스킬 트리 ─────────────────────────────────────
   // row = 깊이(그 줄 광석으로 값을 냄), col = 가로 자리(0이 가운데 기둥)
   // k: 효과 종류, v: 레벨당 값, max: 최대 레벨, b: 첫 값, g: 레벨마다 몇 배
   const NODES = [];
+  const MAST_V = 0.015;
   const SPINE_NAMES = ['광부의 첫걸음', '구리 광맥', '철 광맥', '은 광맥', '금 광맥', '수정 동굴', '미스릴 광맥', '아다만트 광맥', '흑요석 지대', '별철 낙하지'];
   for (let t = 0; t < TIERS.length; t++) {
     NODES.push({ id: 'd' + t, row: t, col: 0, k: 'depth', v: t, max: 1, name: SPINE_NAMES[t],
@@ -101,13 +102,19 @@
   side(9, 1, 'time', 1, 3, 26, 1.8);
   side(9, -2, 'xp', 0.2, 3, 16);
   side(9, 2, 'critD', 0.35, 5, 16);
+  // 광석 숙련: 광석마다 하나, 레벨 끝없음, 그 광석으로만 값을 냄. 한 층 더 내려가야 열림(다 쓴 광석의 쓸 곳)
+  for (let t = 0; t < TIERS.length; t++) {
+    NODES.push({ id: 'm' + t, row: t, col: 'm', k: 'mast', v: MAST_V, max: Infinity, b: 40, g: 1.3, ct: t,
+      after: t < 9 ? 'd' + (t + 1) : 'heart', name: TIERS[t].name + ' 숙련', desc: '공격력 +{p}%' });
+  }
   // 지도 위 자리 (가운데에서 나선으로 깊어짐, test/layout.js 힘 배치로 구해 둔 값)
-  const MAP = {'d0':[0,0], 'd1':[151,-95], 'd2':[268,44], 'd3':[216,223], 'd4':[58,330], 'd5':[-137,338], 'd6':[-321,278], 'd7':[-489,180], 'd8':[-620,40], 'd9':[-651,-143], 'heart':[-499,-233], 'dmg1':[104,91], 'time1':[-138,-5], 'rad1':[-4,177], 'ore1':[-246,81], 'spd1':[58,-198], 'rocks1':[220,-215], 'crit1':[13,-329], 'spawn1':[273,-343], 'mine1':[386,-423], 'dmg2':[326,-82], 'time2':[406,33], 'gem1':[435,-168], 'xp1':[542,5], 'critD1':[346,173], 'rad2':[324,311], 'sand1':[483,194], 'boom1':[446,376], 'ore2':[193,361], 'spd2':[99,463], 'luck1':[280,469], 'mine2':[158,588], 'dmg3':[-38,435], 'chain1':[-171,473], 'rocks2':[-21,572], 'time3':[-176,612], 'crit2':[-298,414], 'critD2':[-429,366], 'spawn2':[-335,548], 'boom2':[-490,490], 'dmg4':[-553,303], 'rad3':[-627,185], 'ore3':[-645,407], 'mine3':[-736,270], 'spd3':[-742,106], 'chain2':[-738,-33], 'sand2':[-876,143], 'luck2':[-876,-40], 'dmg5':[-779,-196], 'time4':[-660,-281], 'xp2':[-904,-257], 'critD3':[-697,-415]};
-  for (const n of NODES) { n.x = MAP[n.id][0]; n.y = MAP[n.id][1]; }
+  const MAP = {'d0':[0,0], 'd1':[167,-101], 'd2':[263,75], 'd3':[236,274], 'd4':[74,392], 'd5':[-129,416], 'd6':[-327,345], 'd7':[-502,218], 'd8':[-621,49], 'd9':[-648,-142], 'heart':[-547,-291], 'dmg1':[-33,134], 'time1':[-99,-99], 'rad1':[-167,172], 'ore1':[-237,-99], 'spd1':[133,-237], 'rocks1':[267,-198], 'crit1':[72,-361], 'spawn1':[329,-322], 'mine1':[420,-426], 'dmg2':[323,-51], 'time2':[401,65], 'gem1':[428,-140], 'xp1':[532,20], 'critD1':[358,209], 'rad2':[353,349], 'sand1':[496,204], 'boom1':[484,392], 'ore2':[210,422], 'spd2':[116,525], 'luck1':[316,510], 'mine2':[193,640], 'dmg3':[-23,505], 'chain1':[-153,554], 'rocks2':[0,642], 'time3':[-171,691], 'crit2':[-260,465], 'critD2':[-398,468], 'spawn2':[-317,592], 'boom2':[-501,561], 'dmg4':[-601,321], 'rad3':[-637,188], 'ore3':[-692,426], 'mine3':[-757,257], 'spd3':[-749,106], 'chain2':[-734,-32], 'sand2':[-885,133], 'luck2':[-872,-38], 'dmg5':[-783,-175], 'time4':[-686,-276], 'xp2':[-909,-233], 'critD3':[-742,-403], 'm0':[-132,36], 'm1':[35,-137], 'm2':[134,32], 'm3':[153,168], 'm4':[49,259], 'm5':[-88,287], 'm6':[-312,209], 'm7':[-466,348], 'm8':[-487,22], 'm9':[-512,-156]};
+  for (const n of NODES) { const q = MAP[n.id] || [0, 0]; n.x = q[0]; n.y = q[1]; }
   const NODE = Object.fromEntries(NODES.map((n) => [n.id, n]));
   // 선행 노드: 기둥은 바로 위 기둥, 옆 가지는 안쪽 이웃(없으면 같은 줄 기둥)
   for (const n of NODES) {
     if (n.col === 0) n.req = n.row ? [n.row === 10 ? 'd9' : 'd' + (n.row - 1)] : [];
+    else if (n.k === 'mast') n.req = ['d' + n.row];
     else {
       const inner = NODES.find((m) => m.row === n.row && m.col === n.col - Math.sign(n.col));
       n.req = [inner ? inner.id : 'd' + n.row];
@@ -205,7 +212,7 @@
 
   function stats(s) {
     const st = { dmgMul: 1, spdMul: 1, rad: 58, time: 12, rocks: 14, spawn: 3, oreMul: 1, crit: 0.03, critD: 2,
-      gem: 0.008, xpMul: 1, chain: 0, boom: 0, sand: 0, luck: 0, mine: 0 };
+      gem: 0.008, xpMul: 1, chain: 0, boom: 0, sand: 0, luck: 0, mine: 0, mast: 0 };
     function add(k, x) {
       switch (k) {
         case 'dmg': st.dmgMul *= 1 + x; break;
@@ -224,6 +231,7 @@
         case 'sand': st.sand += x; break;
         case 'luck': st.luck += x; break;
         case 'mine': st.mine += x; break;
+        case 'mast': st.mast += x; break;
       }
     }
     for (const n of NODES) {
@@ -237,6 +245,7 @@
     }
     const p = PICK[s.picks.eq] || PICKS[0];
     if (p.fx) add(p.fx[0], p.fx[1]);
+    st.dmgMul *= 1 + st.mast;
     const up = s.picks.up[p.id] | 0;
     st.pick = p;
     st.dmg = p.dmg * st.dmgMul * (1 + PICK_UP_V * up);
@@ -263,7 +272,7 @@
   function nodeState(s, id) {
     const n = NODE[id], lv = lvOf(s, id);
     if (lv >= n.max) return 'max';
-    if (!n.req.every((r) => lvOf(s, r) > 0)) return 'locked';
+    if (!n.req.every((r) => lvOf(s, r) > 0) || (n.after && !lvOf(s, n.after))) return 'locked';
     return canPay(s, nodeCost(n, lv)) ? 'buy' : 'open';
   }
   function buyNode(s, id) {

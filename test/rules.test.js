@@ -98,6 +98,21 @@ const before = s.ores[1];
 MG.idle(s, 3600);
 ok(s.ores[1] > before, '자동 광산이 광석을 캠');
 
+// 광석 숙련
+s = MG.newState(0); s.ores = MG.TIERS.map(() => 1e9);
+ok(MG.nodeState(s, 'm0') === 'locked', '돌 숙련은 구리 광맥 전엔 잠김');
+MG.buyNode(s, 'd1');
+ok(MG.nodeState(s, 'm0') === 'buy' && MG.nodeState(s, 'm1') === 'locked', '한 층 내려가면 지난 광석 숙련이 열림');
+const sc = MG.nodeCost(MG.NODE.m0, 0);
+ok(Object.keys(sc).join() === '0', '돌 숙련은 돌로만 값을 냄');
+for (let i = 0; i < 30; i++) MG.buyNode(s, 'm0');
+ok(MG.lvOf(s, 'm0') === 30 && MG.nodeState(s, 'm0') === 'buy', '숙련은 레벨 끝없음');
+MG.buyNode(s, 'd2'); for (let i = 0; i < 10; i++) MG.buyNode(s, 'm1');
+const st2 = MG.stats(s);
+ok(Math.abs(st2.mast - 0.015 * 40) < 1e-9 && Math.abs(st2.dmgMul - (1 + 0.015 * 40)) < 1e-9, '숙련끼리는 더해서 공격력 배수 하나로');
+ok(MG.nodeCost(MG.NODE.m0, 30)[0] > MG.nodeCost(MG.NODE.m0, 29)[0], '숙련 값은 레벨마다 오름');
+ok(MG.nodeState(s, 'm9') === 'locked', '별철 숙련은 심장을 연 뒤');
+
 // 저장·불러오기
 s = MG.newState(0);
 const back = MG.fix(JSON.parse(JSON.stringify(s)));
