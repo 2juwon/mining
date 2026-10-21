@@ -107,6 +107,7 @@ h3 { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spac
 .mn.front.buy { border-color: var(--moss); animation: ready 1.6s ease-in-out infinite; }
 .mn.front.buy .lab .cost { color: var(--moss); }
 @keyframes ready { 0%, 100% { box-shadow: 0 0 0 3px rgba(155,209,127,.15), 0 0 12px rgba(155,209,127,.15); } 50% { box-shadow: 0 0 0 6px rgba(155,209,127,.22), 0 0 26px rgba(155,209,127,.3); } }
+.mn.front.locked { filter: grayscale(.7) brightness(.7); }
 .mn.ghost { width: 56px; height: 56px; border: 2px dashed rgba(200,180,150,.35); background: rgba(30,25,21,.6); color: rgba(220,200,170,.5); font: 900 22px var(--display); cursor: default; }
 .mn.ghost.spine { width: 76px; height: 76px; }
 .mn:not(.ghost):hover { filter: brightness(1.2); }
@@ -232,6 +233,23 @@ h3 { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spac
   .brand { font-size: 18px; }
   .offer { grid-template-columns: 1fr; }
 }
+/* 테스트 모드 — 공사장 줄무늬 */
+.brand { cursor: default; }
+.brand.spin svg { animation: spin .6s ease-out; }
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(720deg); } }
+.testbadge { font: 900 12px var(--body); letter-spacing: .04em; padding: 4px; border-radius: 8px; border: 0; background: repeating-linear-gradient(-45deg, #ffcf3a 0 8px, #1a1406 8px 16px); white-space: nowrap; }
+.testbadge span { display: block; background: #1a1406; color: #ffcf3a; padding: 3px 8px; border-radius: 5px; }
+.testpanel { position: fixed; left: 16px; top: 130px; z-index: 45; width: 300px; max-height: calc(100% - 146px); overflow: auto; background: #0e0c0a; border: 2px solid #ffcf3a; border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.6); font-size: 13px; }
+.testpanel header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: repeating-linear-gradient(-45deg, #2a2208 0 12px, #1a1406 12px 24px); border-bottom: 1px solid #5a4a14; cursor: move; user-select: none; }
+.testpanel header b { font-family: var(--display); font-size: 16px; color: #ffcf3a; flex: 1; }
+.testpanel header button { border: 1px solid #5a4a14; background: #0e0c0a; border-radius: 7px; padding: 3px 9px; font-size: 12px; }
+.testpanel .tp-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 12px; }
+.testpanel.min .tp-body { display: none; }
+.testpanel h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: .08em; color: #c8a84a; font-weight: 700; }
+.tp-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.tp-row .btn { padding: 6px 9px; font-size: 12px; }
+.tp-row .btn[aria-pressed="true"] { background: #ffcf3a; color: #1a1406; border-color: #ffcf3a; }
+.tp-note { color: var(--dust); font-size: 11px; margin: 0; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 
@@ -240,6 +258,7 @@ h3 { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spac
     <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 9c6-5 16-5 22 0" fill="none" stroke="#c9cfd6" stroke-width="3.2" stroke-linecap="round"/><path d="M16 7v21" stroke="#9a6a3d" stroke-width="3.4" stroke-linecap="round"/></svg>한판 광산</div>
     <div class="bag" id="bag"></div>
     <div class="lv"><div class="lvring"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#3d3229" stroke-width="4"/><circle id="xpArc" cx="20" cy="20" r="17" fill="none" stroke="#f2a541" stroke-width="4" stroke-linecap="round" stroke-dasharray="107" stroke-dashoffset="107"/></svg><b id="lvNum">1</b></div><div class="lvmeta num"><span id="xpTxt">0 / 25</span><small>경험치</small></div></div>
+    <button class="testbadge" id="testBadge" hidden><span>테스트 모드</span></button>
     <div class="clock num" id="clock">0:00<small>걸린 시간</small></div>
     <button class="iconbtn" id="soundBtn" aria-label="소리 켜고 끄기"></button>
     <button class="iconbtn" id="menuBtn" aria-label="메뉴"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
@@ -330,6 +349,8 @@ const costHtml = (cost, s) => Object.keys(cost).map((t) => `<span class="${s && 
 
 // ── 저장 ─────────────────────────────────────────
 let S = null;
+// 테스트 모드: 진짜 저장과 따로 노는 연습판 (랭킹에 안 올라감)
+const TEST = { on: false, speed: 1, oneHit: false, endless: false, noFog: false };
 function load() {
   try { const raw = localStorage.getItem(SAVE_KEY); if (raw) return MG.fix(JSON.parse(raw)); } catch (e) { /* 저장 안 됨 */ }
   return null;
@@ -337,7 +358,7 @@ function load() {
 function save() {
   if (!S) return;
   S.lastSeen = Date.now();
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* 저장 안 됨 */ }
+  try { localStorage.setItem(TEST.on ? SAVE_KEY + ':test' : SAVE_KEY, JSON.stringify(S)); } catch (e) { /* 저장 안 됨 */ }
 }
 let prefs = { sound: true };
 try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem(SAVE_KEY + ':prefs') || '{}')); } catch (e) { /* 기본값 */ }
@@ -352,7 +373,7 @@ async function api(path, body) {
   return j;
 }
 async function startRun() {
-  if (!SERVER) return;
+  if (!SERVER || TEST.on) return;
   try {
     const r = await api('/api/run/start', {});
     if (r.run) { S.run = { id: r.run, token: r.token, at: r.at }; S.startAt = Date.now(); save(); }
@@ -361,7 +382,7 @@ async function startRun() {
   if (tab === 'rank') renderView();
 }
 async function reportClear() {
-  if (!S.run || S.runResult && S.runResult.ms) return;
+  if (TEST.on || !S.run || S.runResult && S.runResult.ms) return;
   try {
     const r = await api('/api/run/clear', { run: S.run.id, token: S.run.token, sessions: S.sessions, level: S.level, broken: S.broken, clientMs: (S.clearAt || Date.now()) - S.startAt });
     S.runResult = r.error ? { error: r.error, ms: r.ms } : { ms: r.ms, place: r.place, named: r.named };
@@ -508,6 +529,7 @@ const mp = (n) => ({ x: n.x * MAPS - MB.minX, y: n.y * MAPS - MB.minY });
 const tierOf = (n) => (n.k === 'heart' ? { rock: '#5a1420', vein: '#ff4f5e', name: '심장' } : T[n.col === 0 ? n.row : n.row]);
 function visOf(n) {
   if (MG.lvOf(S, n.id)) return 'own';
+  if (TEST.noFog) return 'front';
   if (n.req.every((r) => MG.lvOf(S, r) > 0)) return 'front';
   if (n.req.every((r) => MG.lvOf(S, r) > 0 || MG.NODE[r].req.every((q) => MG.lvOf(S, q) > 0))) return 'ghost';
   return 'hidden';
@@ -567,7 +589,7 @@ function fogTargets() {
   const t = {};
   for (const n of MG.NODES) {
     const v = visOf(n);
-    t[n.id] = v === 'own' ? (n.col === 0 ? 300 : 230) : v === 'front' ? 150 : 0;
+    t[n.id] = TEST.noFog ? 420 : v === 'own' ? (n.col === 0 ? 300 : 230) : v === 'front' ? 150 : 0;
   }
   return t;
 }
@@ -849,7 +871,9 @@ function renderRank(v) {
     v.append(w); return;
   }
   const box = el('div', 'runbox');
-  if (S.cleared && S.run) {
+  if (TEST.on) {
+    box.innerHTML = '<p>지금은 <b>테스트 모드</b>예요. 여기서 한 것은 진짜 게임과 따로 저장되고 랭킹에 올라가지 않아요. 랭킹 표는 그대로 볼 수 있어요.</p>';
+  } else if (S.cleared && S.run) {
     const rr = S.runResult || {};
     if (rr.ms && !rr.error) {
       box.innerHTML = `<div><span class="muted">클리어 기록</span><div class="big num">${MG.fmtTime(rr.ms)}</div></div>`;
@@ -1054,6 +1078,10 @@ function startSession() {
   rockCache.clear(); fx = []; swingFx = [];
   sess = MG.newSession(S);
   sess.hits = {};
+  if (TEST.on) {
+    if (TEST.oneHit) sess.st.dmg *= 1e6;
+    if (TEST.endless) sess.timeLeft = 1e9;
+  }
   sfx('start');
   lastTick = performance.now();
   tickSec = Math.ceil(sess.timeLeft);
@@ -1099,7 +1127,8 @@ function showClear() {
   box.hidden = false;
   $('#clearOk').onclick = () => { toCamp(); setTab('rank'); };
   const cr = $('#clearRank');
-  if (!SERVER) cr.innerHTML = `<p class="muted" style="font-size:13px">랭킹은 웹 버전(<a href="${PAGES_URL}" target="_blank" rel="noopener" style="color:var(--lamp)">${PAGES_URL}</a>)에서만 올릴 수 있어요.</p>`;
+  if (TEST.on) cr.innerHTML = '<p class="muted" style="font-size:13px">테스트 모드라 랭킹에는 올라가지 않아요.</p>';
+  else if (!SERVER) cr.innerHTML = `<p class="muted" style="font-size:13px">랭킹은 웹 버전(<a href="${PAGES_URL}" target="_blank" rel="noopener" style="color:var(--lamp)">${PAGES_URL}</a>)에서만 올릴 수 있어요.</p>`;
   else if (!S.run) cr.innerHTML = '<p class="muted" style="font-size:13px">이 게임은 랭킹 도전으로 시작하지 않아서 기록을 올릴 수 없어요.</p>';
   else {
     cr.innerHTML = '<p class="muted">서버가 기록을 확인하는 중…</p>';
@@ -1117,7 +1146,7 @@ function showClear() {
 let rafOn = false, lastTick = 0, tickSec = 0;
 function frame(now) {
   if (!sess) { rafOn = false; return; }
-  let dt = Math.min(0.05, (now - lastTick) / 1000);
+  let dt = Math.min(0.05, (now - lastTick) / 1000) * (TEST.on ? TEST.speed : 1);
   lastTick = now;
   if (!sess.over) {
     // 정해진 간격으로 나눠서 진행
@@ -1344,7 +1373,7 @@ function drawHeart(g, k, t) {
 let hudShown = '';
 function drawHud() {
   const tl = Math.max(0, sess.timeLeft);
-  const b = $('#tLeft'); b.textContent = tl.toFixed(1); b.classList.toggle('low', tl < 3);
+  const b = $('#tLeft'); b.textContent = tl > 1e6 ? '∞' : tl.toFixed(1); b.classList.toggle('low', tl < 3);
   $('#tBar').style.width = Math.min(100, (tl / sess.st.time) * 100) + '%';
   const key = sess.score + ':' + sess.gain.join(',') + ':' + sess.gems;
   if (key !== hudShown) {
@@ -1418,6 +1447,109 @@ function newGame(ranked) {
   if (ranked) startRun().then(() => { save(); if (SERVER) loadBoard(); });
   setTab('tree'); refresh();
 }
+
+// ── 테스트 모드 (이스터 에그: 왼쪽 위 '한판 광산'을 빠르게 7번 누르기) ──
+let eggN = 0, eggT = 0;
+$('.brand').addEventListener('click', () => {
+  const now = Date.now();
+  eggN = now - eggT < 700 ? eggN + 1 : 1;
+  eggT = now;
+  const b = $('.brand'); b.classList.remove('spin'); void b.offsetWidth;
+  if (eggN >= 3 && eggN < 7) toast(TEST.on ? `테스트 모드를 닫기까지 ${7 - eggN}번` : `곡괭이가 흔들려요… ${7 - eggN}번 더`);
+  if (eggN >= 7) { eggN = 0; b.classList.add('spin'); if (TEST.on) exitTest(); else enterTest(); }
+});
+function enterTest() {
+  if (sess) { toast('채굴이 끝난 뒤에 열 수 있어요'); return; }
+  save(); // 진짜 게임 저장
+  let t = null;
+  try { const raw = localStorage.getItem(SAVE_KEY + ':test'); if (raw) t = MG.fix(JSON.parse(raw)); } catch (e) { /* 없음 */ }
+  TEST.on = true;
+  S = t || testCopy();
+  resetMapView();
+  sfx('clear');
+  toast('테스트 모드가 열렸어요. 진짜 게임과 따로 저장되고 랭킹에는 안 올라가요');
+  drawTest(); refresh();
+}
+function testCopy() {
+  let real = null;
+  try { real = MG.fix(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch (e) { real = null; }
+  const t = JSON.parse(JSON.stringify(real || S));
+  t.run = null; t.runResult = null; t.runError = null;
+  return t;
+}
+function exitTest() {
+  if (sess) { toast('채굴이 끝난 뒤에 닫을 수 있어요'); return; }
+  save();
+  TEST.on = false; TEST.speed = 1; TEST.oneHit = TEST.endless = TEST.noFog = false;
+  S = load() || MG.newState(Date.now());
+  shown.ores = []; shown.gems = -1; lastResult = null;
+  resetMapView();
+  toast('진짜 게임으로 돌아왔어요');
+  drawTest(); refresh();
+}
+function resetMapView() { cam = null; fogR = {}; seenFront = null; shown.ores = []; shown.gems = -1; }
+function testDo(what) {
+  const all = () => MG.TIERS.map((_, t) => t);
+  switch (what) {
+    case 'ore': all().forEach((t) => { S.ores[t] += 1000; S.total[t] += 1000; }); break;
+    case 'ore10': all().forEach((t) => { S.ores[t] = Math.max(1000, S.ores[t]) * 10; }); break;
+    case 'gem': S.gems += 50; break;
+    case 'depth': { const d = MG.depthOf(S); if (d < 9) { S.skills['d' + (d + 1)] = 1; } else if (!S.heartOpen) { S.skills.heart = 1; S.heartOpen = true; } break; }
+    case 'depthAll': for (let t = 0; t < 10; t++) S.skills['d' + t] = 1; break;
+    case 'skills': for (const n of MG.NODES) if (n.k !== 'heart') S.skills[n.id] = n.max; break;
+    case 'picks': { const d = MG.depthOf(S); MG.PICKS.forEach((p) => { const mt = Math.max(0, ...Object.keys(p.cost).map(Number)); if (mt <= d && !S.picks.own.includes(p.id)) S.picks.own.push(p.id); }); S.picks.eq = S.picks.own[S.picks.own.length - 1]; break; }
+    case 'level': MG.addXp(S, MG.xpNeed(S.level) - S.xp); break;
+    case 'heart': S.skills.heart = 1; S.heartOpen = true; S.cleared = false; S.heartHp = Math.min(S.heartHp, 1000); break;
+    case 'heartFull': S.heartHp = MG.HEART.hp; S.cleared = false; S.clearAt = null; break;
+    case 'idle': { const got = MG.idle(S, 3600); toast('자동 광산 1시간: ' + (got.map((n, t) => (n ? `${T[t].name} ${MG.fmt(n)}` : '')).filter(Boolean).join(', ') || '없음 (자동 광산을 먼저 여세요)')); break; }
+    case 'copy': S = testCopy(); resetMapView(); toast('진짜 게임 상태를 다시 가져왔어요'); break;
+    case 'fresh': S = MG.newState(Date.now()); resetMapView(); toast('테스트판을 처음부터 시작해요'); break;
+  }
+  save(); refresh(); drawTest();
+}
+let tpPos = null;
+function drawTest() {
+  $('#testBadge').hidden = !TEST.on;
+  let p = $('#testPanel');
+  if (!TEST.on) { if (p) p.remove(); return; }
+  const min = p && p.classList.contains('min');
+  if (!p) { p = el('section', 'testpanel'); p.id = 'testPanel'; document.body.append(p); }
+  const tg = (k, label) => `<button class="btn" data-tg="${k}" aria-pressed="${!!TEST[k]}">${label}</button>`;
+  p.innerHTML = `<header><b>테스트 모드</b><button data-a="min">${min ? '펼치기' : '접기'}</button><button data-a="exit">나가기</button></header>
+  <div class="tp-body">
+    <div><h4>광석·보석</h4><div class="tp-row"><button class="btn" data-do="ore">모든 광석 +1000</button><button class="btn" data-do="ore10">×10</button><button class="btn" data-do="gem">보석 +50</button><button class="btn" data-do="idle">자동 광산 1시간</button></div></div>
+    <div><h4>진행</h4><div class="tp-row"><button class="btn" data-do="depth">다음 광맥 열기</button><button class="btn" data-do="depthAll">광맥 모두</button><button class="btn" data-do="skills">스킬 모두 최대</button><button class="btn" data-do="picks">곡괭이 모두</button><button class="btn" data-do="level">레벨 +1</button></div></div>
+    <div><h4>광산의 심장</h4><div class="tp-row"><button class="btn" data-do="heart">체력 1000으로</button><button class="btn" data-do="heartFull">처음 체력으로</button></div></div>
+    <div><h4>채굴</h4><div class="tp-row">${tg('oneHit', '한 방에 깨기')}${tg('endless', '시간 무한')}</div>
+      <div class="tp-row" style="margin-top:5px">${[1, 2, 4].map((v) => `<button class="btn" data-sp="${v}" aria-pressed="${TEST.speed === v}">속도 ×${v}</button>`).join('')}</div></div>
+    <div><h4>스킬 지도</h4><div class="tp-row">${tg('noFog', '안개 걷기')}</div></div>
+    <div><h4>테스트판</h4><div class="tp-row"><button class="btn" data-do="copy">진짜 게임 상태 가져오기</button><button class="btn" data-do="fresh">처음부터</button></div>
+      <p class="tp-note" style="margin-top:6px">여기서 한 것은 진짜 게임과 따로 저장돼요. 다시 열면 이어져요. 랭킹에는 올라가지 않아요. 나가려면 「나가기」나 로고 7번.</p></div>
+  </div>`;
+  if (min) p.classList.add('min');
+  if (tpPos) { p.style.left = tpPos.x + 'px'; p.style.top = tpPos.y + 'px'; }
+  p.querySelectorAll('[data-do]').forEach((b) => (b.onclick = () => { sfx('buy'); testDo(b.dataset.do); }));
+  p.querySelectorAll('[data-tg]').forEach((b) => (b.onclick = () => {
+    TEST[b.dataset.tg] = !TEST[b.dataset.tg];
+    if (b.dataset.tg === 'noFog') { seenFront = null; if (tab === 'tree' && !sess) renderView(); }
+    if (sess && b.dataset.tg === 'endless' && TEST.endless) sess.timeLeft = 1e9;
+    if (sess && b.dataset.tg === 'endless' && !TEST.endless) sess.timeLeft = Math.min(sess.timeLeft, sess.st.time);
+    drawTest();
+  }));
+  p.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { TEST.speed = +b.dataset.sp; drawTest(); }));
+  p.querySelector('[data-a="exit"]').onclick = exitTest;
+  p.querySelector('[data-a="min"]').onclick = () => { p.classList.toggle('min'); drawTest(); };
+  // 머리를 끌어서 옮기기
+  const hd = p.querySelector('header');
+  hd.onpointerdown = (e) => {
+    if (e.target.closest('button')) return;
+    const r = p.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+    hd.setPointerCapture(e.pointerId);
+    hd.onpointermove = (ev) => { tpPos = { x: Math.max(0, Math.min(innerWidth - 80, ev.clientX - ox)), y: Math.max(0, Math.min(innerHeight - 40, ev.clientY - oy)) }; p.style.left = tpPos.x + 'px'; p.style.top = tpPos.y + 'px'; };
+    hd.onpointerup = () => { hd.onpointermove = null; };
+  };
+}
+$('#testBadge').onclick = () => { const p = $('#testPanel'); if (p) { p.classList.remove('min'); drawTest(); } };
 
 // ── 시작 ─────────────────────────────────────────
 function boot() {
