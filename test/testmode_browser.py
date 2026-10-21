@@ -1,6 +1,8 @@
 # 테스트 모드(로고 7번) 시험: python3 test/testmode_browser.py
 import os
 from playwright.sync_api import sync_playwright
+PIXI = os.environ.get('PIXI', '/tmp/claude-0/pixi/node_modules/pixi.js-legacy/dist/pixi-legacy.min.js')
+def pixi(pg): pg.route('**/pixi-legacy.min.js', lambda r: r.fulfill(path=PIXI, content_type='application/javascript'))
 SHOTS = os.environ.get('SHOTS', '/tmp/claude-0/shots')
 url = 'file://' + os.path.abspath('index.html')
 errs, fails = [], []
@@ -8,7 +10,7 @@ def ok(c, m):
     print(('✓ ' if c else '✗ ') + m)
     if not c: fails.append(m)
 with sync_playwright() as p:
-    b = p.chromium.launch(); pg = b.new_page(viewport={'width': 1440, 'height': 860})
+    b = p.chromium.launch(args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']); pg = b.new_page(viewport={'width': 1440, 'height': 860}); pixi(pg)
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto(url); pg.wait_for_timeout(600); pg.click('#hOk')
     pg.evaluate("() => { S.ores[0] = 77; S.sessions = 5; save(); }")

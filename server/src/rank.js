@@ -10,8 +10,13 @@ const KEEP = 100;
 const RUN_TTL = 40 * 24 * 3600 * 1000;   // 시작하고 40일 지나면 도전 정보 정리
 const NAME_TTL = 7 * 24 * 3600 * 1000;   // 클리어하고 7일 안에 이름을 올려야 함
 const STARTS_PER_HOUR = 20;
-export const MIN_MS = 20 * 60 * 1000;    // 이보다 빠른 기록은 받지 않음 (자동 플레이 최고 기록 약 29분)
-export const MIN_SESSIONS = 40;
+// 판(버전)마다 랭킹 표가 따로: 1 = 클래식(바위 수십 개), 2 = 바위 수천 개 버전
+export const VERS = [1, 2];
+export const MIN_MS = { 1: 20 * 60 * 1000, 2: 20 * 60 * 1000 };   // 이보다 빠른 기록은 받지 않음
+export const MIN_SESSIONS = { 1: 40, 2: 30 };
+const verOf = (v) => (VERS.includes(+v) ? +v : 1);
+const bk = (v) => (v === 1 ? 'b:clear' : 'b:clear' + v);
+const sk = (v) => (v === 1 ? 'stats' : 'stats' + v);
 
 const hex = (bytes) => Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, '0')).join('');
 export function cleanRankName(s) {
@@ -23,8 +28,7 @@ const num = (x, lo, hi) => { x = Math.floor(+x || 0); return Math.max(lo, Math.m
 export class Rank extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.minMs = env && env.FAST_TEST ? 1000 : MIN_MS;
-    this.minSessions = env && env.FAST_TEST ? 1 : MIN_SESSIONS;
+    this.fast = !!(env && env.FAST_TEST);
   }
   async tidy() {
     const now = Date.now();
@@ -33,7 +37,10 @@ export class Rank extends DurableObject {
     const old = await this.ctx.storage.list({ prefix: 'r:', end: 'r:' + (now - RUN_TTL).toString(36), limit: 500 });
     if (old.size) await this.ctx.storage.delete([...old.keys()]);
   }
-  async start(who) {
+  minMs(v) { return this.fast ? 1000 : MIN_MS[v]; }
+  minSessions(v) { return this.fast ? 1 : MIN_SESSIONS[v]; }
+  async start(who, ver) {
+    ver = verOf(ver);
     await this.tidy();
     const hour = Math.floor(Date.now() / 3600000);
     const lk = 'l:' + who;
@@ -45,10 +52,10 @@ export class Rank extends DurableObject {
     const at = Date.now();
     const id = at.toString(36) + hex(6);
     const token = hex(16);
-    await this.ctx.storage.put('r:' + id, { token, at });
-    const b = await this.ctx.storage.get('stats');
-    await this.ctx.storage.put('stats', { starts: ((b && b.starts) || 0) + 1, clears: (b && b.clears) || 0 });
-    return { run: id, token, at };
+    await this.ctx.storage.put('r:' + id, { token, at, ver });
+    const b = await this.ctx.storage.get(sk(ver));
+    await this.ctx.storage.put(sk(ver), { starts: ((b && b.starts) || 0) + 1, clears: (b && b.clears) || 0 });
+    return { run: id, token, at, ver };
   }
   async getRun(id, token) {
     if (!/^[a-z0-9]{6,12}[a-f0-9]{12}$/.test(String(id || ''))) return null;
@@ -60,27 +67,28 @@ export class Rank extends DurableObject {
   async clear(body) {
     const r = await this.getRun(body.run, body.token);
     if (!r) return { error: '이 게임은 랭킹 도전으로 시작하지 않았어요' };
+    const v = verOf(r.ver);
     if (!r.clearAt) {
       const now = Date.now();
       const info = { sessions: num(body.sessions, 0, 1e6), level: num(body.level, 0, 9999), broken: num(body.broken, 0, 1e9), clientMs: num(body.clientMs, 0, 1e11) };
       const ms = now - r.at;
       r.clearAt = now; r.ms = ms; r.info = info;
-      if (ms < this.minMs || info.sessions < this.minSessions) {
+      if (ms < this.minMs(v) || info.sessions < this.minSessions(v)) {
         r.rejected = true;
         await this.report(`너무 빠른 클리어 (${Math.round(ms / 1000)}초, ${info.sessions}판)`, body.run, r);
       }
       await this.ctx.storage.put('r:' + body.run, r);
       if (!r.rejected) {
-        const b = (await this.ctx.storage.get('stats')) || { starts: 0, clears: 0 };
+        const b = (await this.ctx.storage.get(sk(v))) || { starts: 0, clears: 0 };
         b.clears += 1;
-        await this.ctx.storage.put('stats', b);
+        await this.ctx.storage.put(sk(v), b);
       }
     }
     if (r.rejected) return { error: '기록이 너무 빨라서 확인할 수 없어요. 관리자에게 자동으로 알렸어요', ms: r.ms };
-    return { ok: true, ms: r.ms, place: await this.placeFor(r.ms), named: !!r.named };
+    return { ok: true, ms: r.ms, place: await this.placeFor(r.ms, v), named: !!r.named, ver: v };
   }
-  async placeFor(ms) {
-    const b = (await this.ctx.storage.get('b:clear')) || { list: [] };
+  async placeFor(ms, v) {
+    const b = (await this.ctx.storage.get(bk(v))) || { list: [] };
     return b.list.filter((e) => e.ms <= ms).length + 1;
   }
   async setName(body) {
@@ -92,29 +100,32 @@ export class Rank extends DurableObject {
     if (Date.now() - r.clearAt > NAME_TTL) return { error: '클리어하고 7일이 지나서 올릴 수 없어요' };
     const name = cleanRankName(body.name);
     if (!name) return { error: '이름을 넣어 주세요' };
-    const b = (await this.ctx.storage.get('b:clear')) || { list: [], total: 0 };
+    const v = verOf(r.ver);
+    const b = (await this.ctx.storage.get(bk(v))) || { list: [], total: 0 };
     const entry = { id: hex(6), name, ms: r.ms, sessions: r.info.sessions, level: r.info.level, at: r.clearAt };
     b.list.push(entry);
     b.list.sort((x, y) => x.ms - y.ms || x.at - y.at);
     const place = b.list.indexOf(entry) + 1;
     b.list = b.list.slice(0, KEEP);
     b.total = (b.total || 0) + 1;
-    await this.ctx.storage.put('b:clear', b);
+    await this.ctx.storage.put(bk(v), b);
     r.named = true;
     await this.ctx.storage.put('r:' + body.run, r);
     return { ok: true, place: place <= KEEP ? place : null, id: entry.id, total: b.total };
   }
-  async board() {
-    const b = (await this.ctx.storage.get('b:clear')) || { list: [], total: 0 };
-    const st = (await this.ctx.storage.get('stats')) || { starts: 0, clears: 0 };
-    return { list: b.list, total: b.total || 0, starts: st.starts, clears: st.clears };
+  async board(ver) {
+    const v = verOf(ver);
+    const b = (await this.ctx.storage.get(bk(v))) || { list: [], total: 0 };
+    const st = (await this.ctx.storage.get(sk(v))) || { starts: 0, clears: 0 };
+    return { ver: v, list: b.list, total: b.total || 0, starts: st.starts, clears: st.clears };
   }
-  async remove(id) {
-    const b = await this.ctx.storage.get('b:clear');
+  async remove(id, ver) {
+    const v = verOf(ver);
+    const b = await this.ctx.storage.get(bk(v));
     if (!b) return false;
     const before = b.list.length;
     b.list = b.list.filter((e) => e.id !== id);
-    await this.ctx.storage.put('b:clear', b);
+    await this.ctx.storage.put(bk(v), b);
     return b.list.length < before;
   }
   async report(why, id, r) {

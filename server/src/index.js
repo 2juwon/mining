@@ -37,7 +37,8 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
       if (p === '/api/run/start' && request.method === 'POST') {
-        const r = await rankStub(env).start(who(request));
+        const b = (await body(request)) || {};
+        const r = await rankStub(env).start(who(request), b.ver);
         return json(r, r.error ? 429 : 200);
       }
       if ((p === '/api/run/clear' || p === '/api/run/name') && request.method === 'POST') {
@@ -46,8 +47,9 @@ export default {
         const r = p.endsWith('clear') ? await rankStub(env).clear(b) : await rankStub(env).setName(b);
         return json(r, r.error ? 400 : 200);
       }
-      if (p === '/api/rank' && request.method === 'GET') return json(await rankStub(env).board());
-      if (p === '/api/stats') { const b = await rankStub(env).board(); return json({ starts: b.starts, clears: b.clears }); }
+      const ver = url.searchParams.get('v') || 1;
+      if (p === '/api/rank' && request.method === 'GET') return json(await rankStub(env).board(ver));
+      if (p === '/api/stats') { const b = await rankStub(env).board(ver); return json({ starts: b.starts, clears: b.clears }); }
       if (p === '/api/feedback' && request.method === 'POST') {
         const b = await body(request, 40000);
         if (!b) return json({ error: '보낸 내용을 읽지 못했어요' }, 400);
@@ -65,9 +67,9 @@ export default {
           return json({ ok: await inboxStub(env).setStatus(fm[1], b.status) });
         }
         if (fm && request.method === 'DELETE') return json({ ok: await inboxStub(env).remove(fm[1]) });
-        if (p === '/api/admin/rank' && request.method === 'GET') return json(await rankStub(env).board());
+        if (p === '/api/admin/rank' && request.method === 'GET') return json(await rankStub(env).board(ver));
         const rm = p.match(/^\/api\/admin\/rank\/([a-f0-9]{12})$/);
-        if (rm && request.method === 'DELETE') return json({ ok: await rankStub(env).remove(rm[1]) });
+        if (rm && request.method === 'DELETE') return json({ ok: await rankStub(env).remove(rm[1], ver) });
         return json({ error: 'not found' }, 404);
       }
       if (p === '/') return new Response('한판 광산 서버가 돌고 있어요', { headers: { 'content-type': 'text/plain; charset=utf-8', ...CORS } });

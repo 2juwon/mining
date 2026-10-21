@@ -44,6 +44,16 @@ const del = await fetch(BASE + '/api/admin/rank/' + adm.list[1].id, { method: 'D
 ok(del.ok, '관리자가 기록 지우기');
 const fb = await get('/api/admin/feedback', { 'x-admin-key': 'test' });
 ok(fb.items.some((i) => /너무 빠른 클리어/.test(i.text)), '너무 빠른 기록은 의견함에 자동 신고');
+// 버전 2 표는 따로
+const v2 = await post('/api/run/start', { ver: 2 });
+ok(v2.ver === 2, '버전 2로 시작');
+await sleep(1200);
+const cv2 = await post('/api/run/clear', { run: v2.run, token: v2.token, sessions: 40, level: 30 });
+ok(cv2.ok && cv2.ver === 2 && cv2.place === 1, '버전 2 표에선 1위 (클래식 기록과 섞이지 않음)');
+await post('/api/run/name', { run: v2.run, token: v2.token, name: '새광부' });
+const bd2 = await get('/api/rank?v=2'), bd1 = await get('/api/rank');
+ok(bd2.list.length === 1 && bd2.list[0].name === '새광부' && !bd1.list.some((e) => e.name === '새광부'), '표가 버전별로 따로');
+ok(bd2.starts === 1 && bd1.starts >= 3, '시작 횟수도 버전별로');
 const f = await post('/api/feedback', { kind: 'idea', text: '재밌어요' });
 ok(f.ok, '의견 보내기');
 console.log(`\n${n - fails}/${n} 통과`);

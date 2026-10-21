@@ -3,34 +3,35 @@ const MG = require('../src/engine.js');
 const RUNS = +process.argv[2] || 5;
 const SKILL = process.argv[3] || 'good';
 const MENU = SKILL === 'good' ? 8 : 15; // 판 사이에 메뉴에서 보내는 초
-const DT = 1 / 30;
+const DT = 1 / 20;
 
 function botCursor(sess, cur, dt, tgt) {
-  // 0.2초마다 가장 값진 자리로 목표를 바꾸고 그쪽으로 마우스를 옮김
+  // 0.2초마다 바위 몇십 개를 골라 그 둘레에 바위가 가장 많이 모인 곳으로 목표를 바꾸고 마우스를 옮김
   if (!tgt.t || sess.t - tgt.t > 0.2) {
     tgt.t = sess.t;
-    const rocks = MG.liveRocks(sess);
+    const rocks = sess.rocks, rad = sess.st.radE;
     let best = null, bv = -1;
-    const rad = sess.st.rad;
-    for (const c of rocks) {
+    const tries = Math.min(rocks.length, 30);
+    for (let q = 0; q < tries; q++) {
+      const c = rocks[(Math.random() * rocks.length) | 0];
+      if (!c || c.dead) continue;
       let v = 0;
-      for (const k of rocks) {
-        const dx = k.x - c.x, dy = k.y - c.y, rr = rad + k.r * 0.6;
-        if (dx * dx + dy * dy <= rr * rr) v += k.heart ? 30 : (1 + k.tier * 0.5);
-      }
+      MG.near(sess, c.x, c.y, rad, (k) => { v += k.heart ? 300 : 1 + k.tier * 0.5; }, 0.6);
       if (SKILL !== 'good') v *= 0.6 + Math.random() * 0.8;
       if (v > bv) { bv = v; best = c; }
     }
+    const h = rocks[0] && rocks[0].heart && !rocks[0].dead ? rocks[0] : null;
+    if (h && SKILL === 'good') best = h;
     if (best) { tgt.x = best.x; tgt.y = best.y; }
   }
   if (tgt.x == null) return cur;
-  const sp = (SKILL === 'good' ? 1600 : 900) * dt;
+  const sp = (SKILL === 'good' ? 1600 : 900) * sess.st.field * dt;
   const dx = tgt.x - cur.x, dy = tgt.y - cur.y, d = Math.hypot(dx, dy);
   if (d <= sp) return { x: tgt.x, y: tgt.y };
   return { x: cur.x + dx / d * sp, y: cur.y + dy / d * sp };
 }
 
-const CARD_PREF = ['dmg', 'spd', 'rad', 'time', 'rocks', 'ore', 'critD', 'crit', 'boom', 'chain', 'sand', 'gem'];
+const CARD_PREF = ['dmg', 'rocks', 'spd', 'rad', 'time', 'boom', 'keep', 'ore', 'critD', 'crit', 'chain', 'sand', 'gem'];
 function shop(s) {
   // 카드
   while (s.pts > 0) {
@@ -75,7 +76,7 @@ function play(seed) {
   let lastDepth = 0;
   for (let i = 0; i < 2000 && !s.cleared; i++) {
     const sess = MG.newSession(s, r);
-    let cur = { x: 500, y: 300 }, tgt = {};
+    let cur = { x: sess.st.W / 2, y: sess.st.H / 2 }, tgt = {};
     while (!sess.over) {
       cur = botCursor(sess, cur, DT, tgt);
       MG.step(s, sess, DT, cur);
@@ -88,10 +89,10 @@ function play(seed) {
     const tS = Date.now(); shop(s); if (process.env.DEBUG && i % 5 === 0) console.error(i, "shop ms", Date.now() - tS, "depth", MG.depthOf(s), "rocks", sess.st.rocks, "broken", sess.broken);
     const d = MG.depthOf(s);
     if (d !== lastDepth) { marks.push(`${d}:${(clock / 60).toFixed(0)}m`); lastDepth = d; }
-    if (s.heartOpen && !marks.some((m) => m.startsWith('H'))) marks.push(`H:${(clock / 60).toFixed(0)}m`);
+    if (s.heartOpen && !marks.some((m) => m.startsWith('H'))) { marks.push(`H:${(clock / 60).toFixed(0)}m`); s._hAt = clock; s._hSess = s.sessions; }
   }
   const st = MG.stats(s);
-  return { min: clock / 60, sessions: s.sessions, level: s.level, cards: s.cards, pick: s.picks.eq, rocks: st.rocks, field: st.field.toFixed(2), mast: MG.NODES.filter((n) => n.k === "mast").map((n) => MG.lvOf(s, n.id)).join("/"), dmg: st.dmg, time: st.time.toFixed(1), marks: marks.join(' ') , cleared: s.cleared};
+  return { min: clock / 60, sessions: s.sessions, level: s.level, cards: s.cards, pick: s.picks.eq, broken: s.broken, rocks: st.rocks, field: st.field.toFixed(2), mast: MG.NODES.filter((n) => n.k === "mast").map((n) => MG.lvOf(s, n.id)).join("/"), dmg: st.dmg, time: st.time.toFixed(1), marks: marks.join(' '), heartMin: s._hAt != null ? +((clock - s._hAt) / 60).toFixed(1) : null, heartSess: s.sessions - (s._hSess || 0), cleared: s.cleared};
 }
 
 if (require.main !== module) { module.exports = { botCursor, shop, play }; return; }

@@ -72,7 +72,7 @@ button.primary{background:var(--seal);color:var(--paper);border-color:var(--seal
 <div class="card row filters"><button data-f="new" aria-pressed="true">새 의견</button><button data-f="all" aria-pressed="false">전체</button><button data-f="bug" aria-pressed="false">고장 신고만</button><span class="meta" id="count" style="margin-left:auto"></span><button id="reload">새로고침</button></div>
 <div id="list"></div>
 <h1 style="margin-top:24px">랭킹</h1><p class="sub">광산의 심장을 깬 시간 순위예요(상위 100개). 이상한 이름이나 기록은 지울 수 있어요.</p>
-<div class="card row"><span class="meta" id="rcount"></span><button id="rreload" style="margin-left:auto">새로고침</button></div>
+<div class="card row filters"><button data-v="2" aria-pressed="true">새 버전</button><button data-v="1" aria-pressed="false">클래식</button><span class="meta" id="rcount"></span><button id="rreload" style="margin-left:auto">새로고침</button></div>
 <div class="card" id="rlist"></div></div>
 </main><script>
 const $=s=>document.querySelector(s);let key='';let items=[];let filter='new';
@@ -94,15 +94,15 @@ const del=document.createElement('button');del.textContent='지우기';del.oncli
 a.append(done,del);c.append(a);L.append(c)}}
 $('#go').onclick=()=>{key=$('#key').value;load()};$('#key').onkeydown=e=>{if(e.key==='Enter'){key=$('#key').value;load()}};
 $('#reload').onclick=load;document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{filter=b.dataset.f;document.querySelectorAll('[data-f]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));draw()});
-let board=null;
+let board=null;let rv=2;
 function ft(ms){const t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor(t/60)%60,x=t%60,p=n=>String(n).padStart(2,'0');return (h?h+':'+p(m):m)+':'+p(x)}
-async function loadRank(){try{board=await api('/api/admin/rank');drawRank()}catch(e){$('#rlist').textContent=e.message}}
+async function loadRank(){try{board=await api('/api/admin/rank?v='+rv);drawRank()}catch(e){$('#rlist').textContent=e.message}}
 function drawRank(){const b=board;const L=$('#rlist');L.innerHTML='';if(!b)return;$('#rcount').textContent='새 게임 '+b.starts+'번 · 클리어 '+b.clears+'번 · 이름 올림 '+b.total+'번';if(!b.list.length){L.textContent='아직 기록이 없어요';L.className='card empty';return}L.className='card';
 b.list.forEach((e,i)=>{const row=document.createElement('div');row.className='row';row.style.padding='6px 0';row.style.borderBottom='1px solid var(--line)';
 const t=document.createElement('span');t.style.flex='1';t.textContent=(i+1)+'위  '+e.name+'  '+ft(e.ms)+'  ('+e.sessions+'판, Lv.'+e.level+')';const m=document.createElement('span');m.className='meta';m.textContent=fmt(e.at);
-const del=document.createElement('button');del.textContent='지우기';del.onclick=async()=>{if(del.dataset.sure!=='1'){del.dataset.sure='1';del.textContent='한 번 더';return}await api('/api/admin/rank/'+e.id,{method:'DELETE'});b.list=b.list.filter(x=>x.id!==e.id);drawRank()};
+const del=document.createElement('button');del.textContent='지우기';del.onclick=async()=>{if(del.dataset.sure!=='1'){del.dataset.sure='1';del.textContent='한 번 더';return}await api('/api/admin/rank/'+e.id+'?v='+rv,{method:'DELETE'});b.list=b.list.filter(x=>x.id!==e.id);drawRank()};
 row.append(t,m,del);L.append(row)})}
-$('#rreload').onclick=loadRank;
+$('#rreload').onclick=loadRank;document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{rv=+b.dataset.v;document.querySelectorAll('[data-v]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));loadRank()});
 const _load=load;load=async()=>{await _load();if(!$('#box').hidden)loadRank()};
 if(key)load();
 </script></body></html>`;

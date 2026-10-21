@@ -113,6 +113,37 @@ ok(Math.abs(st2.mast - 0.015 * 40) < 1e-9 && Math.abs(st2.dmgMul - (1 + 0.015 * 
 ok(MG.nodeCost(MG.NODE.m0, 30)[0] > MG.nodeCost(MG.NODE.m0, 29)[0], '숙련 값은 레벨마다 오름');
 ok(MG.nodeState(s, 'm9') === 'locked', '별철 숙련은 심장을 연 뒤');
 
+// 바위 수천 개: 칸 나누기·연쇄 이어짐·다시 차기
+s = MG.newState(0); s.ores = MG.TIERS.map(() => 1e15);
+for (let t = 1; t < 10; t++) MG.buyNode(s, 'd' + t);
+for (let k = 0; k < 6; k++) for (const n of MG.NODES) if (n.max !== Infinity && n.k !== 'heart') for (let i = 0; i < 5; i++) MG.buyNode(s, n.id);
+for (const p of MG.PICKS) MG.craft(s, p.id);
+let stL = MG.stats(s);
+ok(stL.rocks >= 2500 && stL.field > 5, '끝 무렵 바위 수천 개, 채굴장 넓어짐 (' + stL.rocks + '개, ' + stL.field.toFixed(1) + '배)');
+ok(stL.radE > stL.rad * 4, '고리도 채굴장과 함께 넓어짐');
+sess = MG.newSession(s, MG.rng(3));
+ok(sess.alive > stL.rocks * 0.9, '시작할 때 거의 꽉 참 (' + sess.alive + ')');
+let cnt = 0; MG.near(sess, stL.W / 2, stL.H / 2, 400, () => cnt++);
+let brute = 0; for (const k of sess.rocks) { if (k.dead || k.born > sess.t) continue; const dx = k.x - stL.W / 2, dy = k.y - stL.H / 2; if (dx * dx + dy * dy <= 400 * 400) brute++; }
+ok(cnt === brute, '칸으로 찾은 바위 수 = 전부 훑은 수 (' + cnt + ')');
+function chainRun(keep) {
+  const ss = MG.newSession(s, MG.rng(9)); ss.st.boom = 1; ss.st.keep = keep;
+  for (let i = 0; i < 150; i++) { MG.step(s, ss, 1 / 30, { x: ss.st.W / 2, y: ss.st.H / 2 }); ss.ev.length = 0; }
+  return ss.genMax;
+}
+const g0 = chainRun(0), g1 = chainRun(1);
+ok(g0 <= 1, '연쇄 이어짐 0이면 폭발로 깨진 바위는 다시 안 터짐 (' + g0 + '대)');
+ok(g1 > 3, '연쇄 이어짐 100%면 여러 대로 번짐 (' + g1 + '대)');
+sess = MG.newSession(s, MG.rng(4));
+for (const k of sess.rocks) if (!k.heart) { k.dead = true; } sess.alive = 0;
+for (let i = 0; i < Math.ceil((sess.st.refill + 0.5) * 30); i++) MG.step(s, sess, 1 / 30, null);
+ok(sess.alive > sess.st.rocks * 0.85, '다 깨도 꽉 차기 시간 안에 다시 참 (' + sess.alive + '/' + sess.st.rocks + ')');
+s.skills.heart = 1; s.heartOpen = true; s.heartHp = MG.HEART.hp;
+sess = MG.newSession(s, MG.rng(5)); sess.st.boom = 1; sess.st.keep = 1;
+const h0 = s.heartHp;
+for (let i = 0; i < 60; i++) MG.step(s, sess, 1 / 30, { x: sess.st.W * 0.2, y: sess.st.H * 0.2 });
+ok(s.heartHp === h0, '심장은 폭발·번개에 다치지 않고 곡괭이로만');
+
 // 저장·불러오기
 s = MG.newState(0);
 const back = MG.fix(JSON.parse(JSON.stringify(s)));

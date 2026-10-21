@@ -1,12 +1,15 @@
 # 랭킹 흐름: cd server && npx wrangler dev --var FAST_TEST:1 → SERVER=http://127.0.0.1:8787 node build.js → python3 test/online_browser.py
 import os
 from playwright.sync_api import sync_playwright
+PIXI = os.environ.get('PIXI', '/tmp/claude-0/pixi/node_modules/pixi.js-legacy/dist/pixi-legacy.min.js')
+def pixi(pg): pg.route('**/pixi-legacy.min.js', lambda r: r.fulfill(path=PIXI, content_type='application/javascript'))
 SHOTS = os.environ.get('SHOTS', '/tmp/claude-0/shots')
 url = 'file://' + os.path.abspath('index.html')
 errs = []
 with sync_playwright() as p:
-    b = p.chromium.launch()
+    b = p.chromium.launch(args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
     pg = b.new_page(viewport={'width': 1440, 'height': 860})
+    pixi(pg)
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto(url); pg.wait_for_timeout(900)
     pg.click('#hOk')
