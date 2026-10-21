@@ -85,15 +85,16 @@ function play(seed) {
     MG.endSession(s, sess);
     MG.idle(s, sess.t + MENU);
     clock += sess.t + MENU;
-    shop(s);
+    const tS = Date.now(); shop(s); if (process.env.DEBUG && i % 5 === 0) console.error(i, "shop ms", Date.now() - tS, "depth", MG.depthOf(s), "rocks", sess.st.rocks, "broken", sess.broken);
     const d = MG.depthOf(s);
     if (d !== lastDepth) { marks.push(`${d}:${(clock / 60).toFixed(0)}m`); lastDepth = d; }
     if (s.heartOpen && !marks.some((m) => m.startsWith('H'))) marks.push(`H:${(clock / 60).toFixed(0)}m`);
   }
   const st = MG.stats(s);
-  return { min: clock / 60, sessions: s.sessions, level: s.level, cards: s.cards, pick: s.picks.eq, mast: MG.NODES.filter((n) => n.k === "mast").map((n) => MG.lvOf(s, n.id)).join("/"), dmg: st.dmg, time: st.time.toFixed(1), marks: marks.join(' ') , cleared: s.cleared};
+  return { min: clock / 60, sessions: s.sessions, level: s.level, cards: s.cards, pick: s.picks.eq, rocks: st.rocks, field: st.field.toFixed(2), mast: MG.NODES.filter((n) => n.k === "mast").map((n) => MG.lvOf(s, n.id)).join("/"), dmg: st.dmg, time: st.time.toFixed(1), marks: marks.join(' ') , cleared: s.cleared};
 }
 
+if (require.main !== module) { module.exports = { botCursor, shop, play }; return; }
 const res = [];
 for (let i = 0; i < RUNS; i++) { const r = play(1000 + i); res.push(r); console.log(JSON.stringify(r)); }
 const avg = res.reduce((a, b) => a + b.min, 0) / res.length;

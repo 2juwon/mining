@@ -963,12 +963,16 @@ function renderSide() {
 const cv = $('#cv'), cx = cv.getContext('2d');
 let sess = null, mouse = null, view = { s: 1, ox: 0, oy: 0, w: 0, h: 0, dpr: 1 };
 let fx = [], shake = 0, bgCanvas = null, lastResult = null, swingFx = [], rockCache = new Map();
+// 채굴장 크기: 바위가 많을수록 넓어짐 (엔진 stats의 W·H)
+const fieldW = () => (sess ? sess.st.W : MG.W), fieldH = () => (sess ? sess.st.H : MG.H);
+const UZ = () => (sess ? sess.st.field : 1); // 글자·선 굵기를 화면 기준으로 같게 유지
 function fit() {
   const r = cv.getBoundingClientRect();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
-  const s = Math.min(r.width / MG.W, (r.height - 70) / MG.H);
-  view = { s, ox: (r.width - MG.W * s) / 2, oy: 70 + (r.height - 70 - MG.H * s) / 2, w: r.width, h: r.height, dpr };
+  const FW = fieldW(), FH = fieldH();
+  const s = Math.min(r.width / FW, (r.height - 70) / FH);
+  view = { s, ox: (r.width - FW * s) / 2, oy: 70 + (r.height - 70 - FH * s) / 2, w: r.width, h: r.height, dpr };
   bgCanvas = null;
 }
 function toField(e) {
@@ -995,7 +999,7 @@ function makeBg() {
     g.fill();
   }
   // 바닥 (채굴장)
-  const fx0 = view.ox * d, fy0 = view.oy * d, fw = MG.W * view.s * d, fh = MG.H * view.s * d;
+  const fx0 = view.ox * d, fy0 = view.oy * d, fw = fieldW() * view.s * d, fh = fieldH() * view.s * d;
   const fg = g.createRadialGradient(fx0 + fw / 2, fy0 + fh / 2, fh * 0.1, fx0 + fw / 2, fy0 + fh / 2, fw * 0.62);
   fg.addColorStop(0, '#3a2e24'); fg.addColorStop(0.7, '#241b15'); fg.addColorStop(1, 'rgba(20,15,12,0)');
   g.fillStyle = fg; g.fillRect(0, 0, w, h);
@@ -1081,9 +1085,9 @@ function startSession() {
   hideTip();
   $('#camp').hidden = true; $('#mine').hidden = false;
   $('#result').hidden = true; $('#clearBox').hidden = true;
-  fit();
   rockCache.clear(); fx = []; swingFx = [];
   sess = MG.newSession(S);
+  fit(); // 바위 수에 맞춰 넓어진 채굴장 크기로
   sess.hits = {};
   if (TEST.on) {
     if (TEST.oneHit) sess.st.dmg *= 1e6;
@@ -1125,7 +1129,7 @@ function toCamp() {
 }
 function showClear() {
   const box = $('#clearBox');
-  burst(MG.W / 2, MG.H / 2, '#ff4f5e', 120, 9); burst(MG.W / 2, MG.H / 2, '#ffd36b', 120, 7);
+  burst(fieldW() / 2, fieldH() / 2, '#ff4f5e', 120, 9); burst(fieldW() / 2, fieldH() / 2, '#ffd36b', 120, 7);
   const ms = runMs();
   box.innerHTML = `<div class="rc"><h2>광산의 심장을 깼어요!</h2><div class="muted">새 게임부터 걸린 시간</div><div class="t num" id="clearT">${MG.fmtTime(ms)}</div>
     <div class="muted num" style="font-size:13px">${S.sessions}판 · 레벨 ${S.level} · 바위 ${MG.fmt(S.broken)}개</div>
@@ -1159,7 +1163,7 @@ function frame(now) {
     // 정해진 간격으로 나눠서 진행
     while (dt > 0) {
       const d = Math.min(1 / 60, dt); dt -= d;
-      const cur = mouse && mouse.x >= -20 && mouse.y >= -20 && mouse.x <= MG.W + 20 && mouse.y <= MG.H + 20 ? mouse : null;
+      const cur = mouse && mouse.x >= -20 && mouse.y >= -20 && mouse.x <= fieldW() + 20 && mouse.y <= fieldH() + 20 ? mouse : null;
       const wasCleared = S.cleared;
       MG.step(S, sess, d, cur);
       handleEvents();
@@ -1230,10 +1234,10 @@ function draw(dt) {
   // 등불 빛 (흔들림)
   const fl = 0.85 + Math.sin(t * 9) * 0.05 + Math.sin(t * 23) * 0.03;
   g.globalCompositeOperation = 'lighter';
-  for (const [lx, ly] of [[-30, 60], [MG.W + 30, 60]]) {
-    const lg = g.createRadialGradient(lx, ly, 5, lx, ly, 420 * fl);
+  for (const [lx, ly] of [[-30, 60], [fieldW() + 30, 60]]) {
+    const lg = g.createRadialGradient(lx, ly, 5, lx, ly, 420 * fl * UZ());
     lg.addColorStop(0, 'rgba(255,170,80,.22)'); lg.addColorStop(1, 'rgba(255,140,60,0)');
-    g.fillStyle = lg; g.fillRect(lx - 450, ly - 450, 900, 900);
+    g.fillStyle = lg; g.fillRect(lx - 450 * UZ(), ly - 450 * UZ(), 900 * UZ(), 900 * UZ());
     g.fillStyle = `rgba(255,${200 + Math.random() * 40},120,.9)`;
     g.beginPath(); g.arc(lx, ly, 6 + Math.random() * 1.5, 0, Math.PI * 2); g.fill();
   }
@@ -1282,10 +1286,10 @@ function draw(dt) {
       drawPick(g, 26);
       g.restore();
     } else if (f.type === 'num' || f.type === 'gain' || f.type === 'big') {
-      const yy = f.y - p * (f.type === 'num' ? 26 : 40);
+      const yy = f.y - p * (f.type === 'num' ? 26 : 40) * UZ();
       g.globalAlpha = p < 0.7 ? 1 : (1 - p) / 0.3;
-      g.font = `${f.type === 'big' ? 900 : 700} ${f.type === 'big' ? 26 : f.crit ? 20 : f.type === 'gain' ? 15 : 13}px ${f.type === 'num' ? 'IBM Plex Sans KR' : 'Hahmlet'}, sans-serif`;
-      g.textAlign = 'center'; g.lineWidth = 4; g.strokeStyle = 'rgba(0,0,0,.75)';
+      g.font = `${f.type === 'big' ? 900 : 700} ${(f.type === 'big' ? 26 : f.crit ? 20 : f.type === 'gain' ? 15 : 13) * Math.sqrt(UZ())}px ${f.type === 'num' ? 'IBM Plex Sans KR' : 'Hahmlet'}, sans-serif`;
+      g.textAlign = 'center'; g.lineWidth = 4 * Math.sqrt(UZ()); g.strokeStyle = 'rgba(0,0,0,.75)';
       g.strokeText(f.text, f.x, yy); g.fillStyle = f.color; g.fillText(f.text, f.x, yy);
       g.globalAlpha = 1;
     } else if (f.type === 'ring') {
@@ -1308,12 +1312,12 @@ function draw(dt) {
     g.save(); g.translate(mouse.x, mouse.y);
     g.strokeStyle = 'rgba(242,165,65,.18)'; g.lineWidth = 2; g.setLineDash([]);
     g.beginPath(); g.arc(0, 0, st.rad, 0, Math.PI * 2); g.stroke();
-    g.strokeStyle = 'rgba(255,214,150,.85)'; g.lineWidth = 3; g.lineCap = 'round';
+    g.strokeStyle = 'rgba(255,214,150,.85)'; g.lineWidth = 3 * UZ(); g.lineCap = 'round';
     g.beginPath(); g.arc(0, 0, st.rad, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2); g.stroke();
     g.setLineDash([4, 7]); g.strokeStyle = 'rgba(242,165,65,.45)'; g.lineWidth = 1.2;
     g.rotate(t * 0.6); g.beginPath(); g.arc(0, 0, st.rad - 6, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
     g.restore();
-    g.fillStyle = '#ffe2b0'; g.beginPath(); g.arc(mouse.x, mouse.y, 2.5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffe2b0'; g.beginPath(); g.arc(mouse.x, mouse.y, 2.5 * UZ(), 0, Math.PI * 2); g.fill();
   }
   for (const s of swingFx) {
     s.t += dt; const p = s.t / 0.25;
@@ -1325,9 +1329,9 @@ function draw(dt) {
   // 처음 몇 판은 안내
   if (S.sessions < 2 && sess.t < 6) {
     g.globalAlpha = Math.min(1, (6 - sess.t) / 1.5);
-    g.font = '700 22px Hahmlet, serif'; g.textAlign = 'center'; g.lineWidth = 5; g.strokeStyle = 'rgba(0,0,0,.8)'; g.fillStyle = '#f1e6d2';
+    g.font = `700 ${22 * UZ()}px Hahmlet, serif`; g.textAlign = 'center'; g.lineWidth = 5 * UZ(); g.strokeStyle = 'rgba(0,0,0,.8)'; g.fillStyle = '#f1e6d2';
     const msg = '마우스를 바위 위에 올려 두면 곡괭이가 저절로 캐요';
-    g.strokeText(msg, MG.W / 2, MG.H - 24); g.fillText(msg, MG.W / 2, MG.H - 24);
+    g.strokeText(msg, fieldW() / 2, fieldH() - 24 * UZ()); g.fillText(msg, fieldW() / 2, fieldH() - 24 * UZ());
     g.globalAlpha = 1;
   }
   // 시간 얼마 안 남음
@@ -1372,10 +1376,11 @@ function drawHeart(g, k, t) {
   g.strokeStyle = 'rgba(30,0,0,.8)'; g.lineWidth = 2;
   for (let i = 0; i < Math.floor(dmg * 10); i++) { const a = i * 2.3; g.beginPath(); g.moveTo(Math.cos(a) * R * 0.1, Math.sin(a) * R * 0.1); g.lineTo(Math.cos(a + 0.4) * R * 0.5, Math.sin(a + 0.4) * R * 0.45); g.lineTo(Math.cos(a) * R * 0.75, Math.sin(a) * R * 0.6); g.stroke(); }
   g.restore();
-  g.fillStyle = 'rgba(0,0,0,.65)'; g.fillRect(k.x - 90, k.y + k.r + 18, 180, 9);
-  g.fillStyle = '#ff4f5e'; g.fillRect(k.x - 90, k.y + k.r + 18, 180 * (k.hp / k.max), 9);
-  g.font = '700 13px "IBM Plex Sans KR", sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ffd0d0';
-  g.fillText(`광산의 심장 ${MG.fmt(Math.max(0, k.hp))}`, k.x, k.y + k.r + 44);
+  const z = UZ();
+  g.fillStyle = 'rgba(0,0,0,.65)'; g.fillRect(k.x - 90 * z, k.y + k.r + 18 * z, 180 * z, 9 * z);
+  g.fillStyle = '#ff4f5e'; g.fillRect(k.x - 90 * z, k.y + k.r + 18 * z, 180 * z * (k.hp / k.max), 9 * z);
+  g.font = `700 ${13 * z}px "IBM Plex Sans KR", sans-serif`; g.textAlign = 'center'; g.fillStyle = '#ffd0d0';
+  g.fillText(`광산의 심장 ${MG.fmt(Math.max(0, k.hp))}`, k.x, k.y + k.r + 44 * z);
 }
 let hudShown = '';
 function drawHud() {

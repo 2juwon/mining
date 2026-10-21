@@ -48,7 +48,7 @@
     xp: ['경험 많은 광부', '경험치 +{p}%'],
     chain: ['번개 곡괭이', '때릴 때 {p}% 확률로 번개'],
     boom: ['폭약 상자', '깨질 때 {p}% 확률로 폭발'],
-    sand: ['시간의 모래', '깰 때 {p}% 확률로 +0.5초'],
+    sand: ['시간의 모래', '깰 때 {p}% 확률로 +0.5초 (한 판에 채굴 시간의 절반까지)'],
     luck: ['광맥 탐지', '깊은 광석이 더 자주'],
     mine: ['자동 광산', '쉬는 동안에도 광석을 캠'],
   };
@@ -66,7 +66,7 @@
   side(0, -2, 'rad', 6, 3, 15);
   side(0, 2, 'ore', 0.12, 3, 18);
   side(1, -1, 'spd', 0.05, 5, 8);
-  side(1, 1, 'rocks', 2, 3, 12, 1.7);
+  side(1, 1, 'rocks', 4, 5, 12, 1.55);
   side(1, -2, 'crit', 0.02, 5, 10);
   side(1, 2, 'spawn', 0.15, 3, 14);
   side(1, 3, 'mine', 1, 5, 25, 1.6);
@@ -84,7 +84,7 @@
   side(4, 2, 'mine', 1, 5, 20, 1.6);
   side(5, -1, 'dmg', 0.3, 5, 12);
   side(5, 1, 'chain', 0.06, 3, 16);
-  side(5, -2, 'rocks', 2, 3, 18, 1.7);
+  side(5, -2, 'rocks', 5, 5, 18, 1.55);
   side(5, 2, 'time', 1, 3, 22, 1.8);
   side(6, -1, 'crit', 0.02, 5, 12);
   side(6, 1, 'critD', 0.3, 5, 12);
@@ -157,7 +157,7 @@
     { id: 'chain', name: '정전기', k: 'chain', v: 0.03, d: '때릴 때 번개 확률 +{p}%' },
     { id: 'boom', name: '불씨', k: 'boom', v: 0.03, d: '깨질 때 폭발 확률 +{p}%' },
     { id: 'sand', name: '모래시계', k: 'sand', v: 0.02, d: '깰 때 +0.5초 확률 +{p}%' },
-    { id: 'rocks', name: '광맥 증식', k: 'rocks', v: 1, d: '바위 최대 수 +{n}' },
+    { id: 'rocks', name: '광맥 증식', k: 'rocks', v: 3, d: '바위 최대 수 +{n}' },
   ];
   const CARD = Object.fromEntries(CARDS.map((c) => [c.id, c]));
   const CARD_HP = 0.04; // 카드 한 장마다 바위 체력 +4%
@@ -211,7 +211,7 @@
   const depthOf = (s) => { let d = 0; for (let t = 0; t < TIERS.length; t++) if (lvOf(s, 'd' + t)) d = t; return d; };
 
   function stats(s) {
-    const st = { dmgMul: 1, spdMul: 1, rad: 58, time: 12, rocks: 14, spawn: 3, oreMul: 1, crit: 0.03, critD: 2,
+    const st = { dmgMul: 1, spdMul: 1, rad: 58, time: 12, rocks: 16, spawn: 3, oreMul: 1, crit: 0.03, critD: 2,
       gem: 0.008, xpMul: 1, chain: 0, boom: 0, sand: 0, luck: 0, mine: 0, mast: 0 };
     function add(k, x) {
       switch (k) {
@@ -255,6 +255,11 @@
     st.boom = Math.min(0.8, st.boom);
     st.sand = Math.min(0.5, st.sand);
     st.depth = depthOf(s);
+    // 바위가 많아질수록 채굴장이 넓어짐(화면에선 멀리서 보게 돼 바위가 작아 보임). 넓이보다 바위가 더 빨리 늘어 점점 빽빽해짐
+    st.rocks = Math.round(st.rocks);
+    st.field = Math.max(1, Math.min(2.3, Math.pow(st.rocks / 16, 0.42)));
+    st.W = Math.round(W * st.field); st.H = Math.round(H * st.field);
+    st.spawn *= Math.pow(st.rocks / 16, 0.85);
     st.hpMul = 1 + CARD_HP * s.cards;
     st.weights = TIERS.map((_, t) => (t <= st.depth ? Math.pow(1.6 + st.luck, t - st.depth) : 0));
     return st;
@@ -375,9 +380,9 @@
     const sess = { st, r, t: 0, timeLeft: st.time, rocks: [], nid: 1, spawnAcc: 0, swingT: st.swing * 0.5,
       gain: TIERS.map(() => 0), gems: 0, xp: 0, score: 0, broken: 0, crits: 0, over: false, ev: [], sandBonus: 0, heartHit: 0 };
     if (s.heartOpen && !s.cleared) {
-      sess.rocks.push({ id: sess.nid++, heart: true, x: W / 2, y: H / 2, r: HEART.r, tier: 9, hp: s.heartHp, max: HEART.hp, born: 0 });
+      sess.rocks.push({ id: sess.nid++, heart: true, x: st.W / 2, y: st.H / 2, r: HEART.r * Math.sqrt(st.field), tier: 9, hp: s.heartHp, max: HEART.hp, born: 0 });
     }
-    for (let i = 0; i < st.rocks; i++) spawnRock(s, sess, i * 0.035);
+    for (let i = 0; i < st.rocks; i++) spawnRock(s, sess, i * Math.min(0.035, 1.2 / st.rocks));
     return sess;
   }
   function pickTier(st, r) {
@@ -391,7 +396,7 @@
     const tier = pickTier(st, r), T = TIERS[tier];
     const rad = T.r * (0.9 + r() * 0.25);
     for (let tries = 0; tries < 14; tries++) {
-      const x = 50 + r() * (W - 100), y = 50 + r() * (H - 100);
+      const x = 50 + r() * (st.W - 100), y = 50 + r() * (st.H - 100);
       let ok = true;
       for (const o of sess.rocks) {
         const dx = o.x - x, dy = o.y - y, md = o.r + rad + 6;
@@ -441,7 +446,7 @@
     let gem = false;
     if (r() < st.gem) { s.gems++; sess.gems++; gem = true; }
     sess.ev.push({ e: 'break', id: rock.id, x: rock.x, y: rock.y, tier: rock.tier, n, gem, up: ups });
-    if (st.sand && r() < st.sand) { sess.timeLeft += 0.5; sess.sandBonus += 0.5; sess.ev.push({ e: 'sand', x: rock.x, y: rock.y }); }
+    if (st.sand && sess.sandBonus < st.time * 0.5 && r() < st.sand) { sess.timeLeft += 0.5; sess.sandBonus += 0.5; sess.ev.push({ e: 'sand', x: rock.x, y: rock.y }); }
     if (st.boom && r() < st.boom) {
       sess.ev.push({ e: 'boom', x: rock.x, y: rock.y });
       for (const o of liveRocks(sess)) {
