@@ -81,6 +81,8 @@ body { background: var(--soot); color: var(--parch); font: 13px/1.5 var(--body);
     <div class="ctl"><label>바위 단단함</label><div class="seg" id="sHits"><button data-v="1">한 방</button><button data-v="2" aria-pressed="true">두 방</button><button data-v="4">네 방</button><button data-v="8">여덟 방</button></div></div>
     <div class="ctl"><label for="cBoom">깨질 때 폭발 확률 <output id="oBoom"></output></label><input type="range" id="cBoom" min="0" max="0.6" step="0.01" value="0.1"></div>
     <div class="ctl"><label for="cBoomR">폭발 범위 <output id="oBoomR"></output></label><input type="range" id="cBoomR" min="20" max="200" step="5" value="70"></div>
+    <div class="ctl"><label for="cChain">연쇄 이어짐 <output id="oChain"></output></label><input type="range" id="cChain" min="0" max="1" step="0.05" value="0.5"></div>
+    <p class="note" style="margin-top:-8px">폭발로 깨진 바위가 또 터질 확률을 대마다 이만큼씩 곱해요. 100%면 빽빽할 때 끝없이 번져요.</p>
     <div class="ctl"><label for="cZap">때릴 때 번개 확률 <output id="oZap"></output></label><input type="range" id="cZap" min="0" max="0.5" step="0.01" value="0.05"></div>
     <div class="ctl"><label>광석</label><div class="seg" id="sTier"><button data-v="0">돌만</button><button data-v="4">금층까지</button><button data-v="9" aria-pressed="true">모두 섞어서</button></div></div>
     <div class="ctl"><label>파편 양</label><div class="seg" id="sQ"><button data-v="auto" aria-pressed="true">자동</button><button data-v="3">많이</button><button data-v="1.5">보통</button><button data-v="0.5">조금</button></div></div>
@@ -107,7 +109,7 @@ const CAP = 5000;              // 바위 최대
 const VAR = 8, CRACK = 4, CELL = 64; // 바위 모양 가지 수, 금 단계, 그림 칸 크기
 
 // ── 설정 ──
-const P = { N: 2000, refill: 1, rad: 130, swing: 0.25, hits: 2, boom: 0.1, boomR: 70, zap: 0.05, maxTier: 9, q: 'auto', auto: false, sound: false };
+const P = { N: 2000, refill: 1, rad: 130, swing: 0.25, hits: 2, boom: 0.1, boomR: 70, chain: 0.5, zap: 0.05, maxTier: 9, q: 'auto', auto: false, sound: false };
 let qMul = 1.5; // 파편 배수 (자동이면 프레임에 따라 바뀜)
 function bindRange(id, out, key, fmt) {
   const el = $('#' + id), o = $('#' + out);
@@ -121,6 +123,7 @@ bindRange('cSwing', 'oSwing', 'swing', (v) => v.toFixed(2) + '초');
 bindRange('cBoom', 'oBoom', 'boom', (v) => Math.round(v * 100) + '%');
 bindRange('cBoomR', 'oBoomR', 'boomR', (v) => v + 'px');
 bindRange('cZap', 'oZap', 'zap', (v) => Math.round(v * 100) + '%');
+bindRange('cChain', 'oChain', 'chain', (v) => Math.round(v * 100) + '%');
 function bindSeg(id, key, parse) {
   const root = $('#' + id);
   root.querySelectorAll('button').forEach((b) => (b.onclick = () => {
@@ -387,21 +390,23 @@ const gained = TIERS.map(() => 0), gainedRecent = TIERS.map(() => 0);
 let totalBroken = 0, brokenThisFrame = 0, rateWin = [], combo = 0, comboT = 0, comboMax = 0;
 stage.addEventListener('pointermove', (e) => { const r = stage.getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top }; });
 stage.addEventListener('pointerleave', () => { if (!P.auto) mouse = null; });
-function damage(i, d) {
+function damage(i, d, gen) {
   if (!R.alive[i]) return;
   R.hp[i] -= d; R.kick[i] = 1;
-  if (R.hp[i] <= 0) { breakRock(i); return; }
+  if (R.hp[i] <= 0) { breakRock(i, gen || 0); return; }
   const c = Math.min(CRACK - 1, Math.floor((1 - R.hp[i] / R.max[i]) * CRACK + 0.25));
   if (c !== R.crack[i]) { R.crack[i] = c; R.sp[i].texture = rockTex[R.tier[i]][R.v[i]][c]; }
 }
-function breakRock(i) {
+let genMax = 0, genShown = 0;
+function breakRock(i, gen) {
   const x = R.x[i], y = R.y[i], t = R.tier[i], T = TIERS[t];
   kill(i);
   totalBroken++; brokenThisFrame++; gained[t]++; gainedRecent[t]++;
   const n = Math.max(1, Math.round((2 + t * 0.4) * qMul * Math.max(0.5, rockR / 12)));
   for (let k2 = 0; k2 < n; k2++) chip(x, y, k2 % 2 ? T.rockNum : T.veinNum, 90 + rockR * 9, Math.max(2, rockR * 0.45));
   if (qMul >= 1 || Math.random() < qMul) glow(x, y, rockR * 3.5, T.veinNum, 0.25);
-  if (P.boom && Math.random() < P.boom) booms.push({ x, y, t: tNow + 0.06 + Math.random() * 0.05 });
+  // gen: 이 바위를 깬 폭발이 몇 대째인지 (휘둘러 깼으면 0). 대를 거듭할수록 또 터질 확률이 줄어듦
+  if (P.boom && gen < 30 && Math.random() < P.boom * Math.pow(P.chain, gen)) booms.push({ x, y, t: tNow + 0.06 + Math.random() * 0.05, gen: gen + 1 });
 }
 function swing(cx, cy) {
   const hit = [];
@@ -425,13 +430,14 @@ function doBooms() {
     booms.splice(b, 1); b--; n++;
     ring(bo.x, bo.y, P.boomR); glow(bo.x, bo.y, P.boomR * 1.4, 0xff8a3a, 0.25);
     shake = Math.min(14, shake + 0.6);
-    forNear(bo.x, bo.y, P.boomR, (i) => damage(i, 3));
+    genMax = Math.max(genMax, bo.gen || 1);
+    forNear(bo.x, bo.y, P.boomR, (i) => damage(i, 3, bo.gen || 1));
   }
   if (booms.length > 4000) booms.splice(0, booms.length - 4000);
 }
 function bigBoom() {
   const W = app.screen.width, H = app.screen.height;
-  for (let k2 = 0; k2 < 30; k2++) booms.push({ x: Math.random() * W, y: 70 + Math.random() * (H - 70), t: tNow + k2 * 0.03 });
+  for (let k2 = 0; k2 < 30; k2++) booms.push({ x: Math.random() * W, y: 70 + Math.random() * (H - 70), t: tNow + k2 * 0.03, gen: 1 });
 }
 $('#bBoom').onclick = bigBoom;
 
@@ -511,7 +517,8 @@ app.ticker.add(() => {
   world.x = shake > 0.3 ? (Math.random() - 0.5) * shake : 0; world.y = shake > 0.3 ? (Math.random() - 0.5) * shake : 0;
   // 소리·묶음 글자·연속
   if (brokenThisFrame) { sndBreak(brokenThisFrame, 3); combo += brokenThisFrame; comboT = 0.8; if (brokenThisFrame > 25) shake = Math.min(14, shake + brokenThisFrame / 25); }
-  comboT -= dt; if (comboT <= 0 && combo) { comboMax = Math.max(comboMax, combo); combo = 0; }
+  comboT -= dt; if (comboT <= 0 && combo) { comboMax = Math.max(comboMax, combo); combo = 0; genShown = 0; }
+  if (combo) genShown = Math.max(genShown, genMax); genMax = 0;
   labelT -= dt;
   if (labelT <= 0) {
     labelT = 0.3;
@@ -541,12 +548,12 @@ setInterval(() => {
   $('#mAlive').textContent = alive.toLocaleString('ko-KR');
   $('#mRate').textContent = rate.toLocaleString('ko-KR');
   $('#mTotal').textContent = totalBroken.toLocaleString('ko-KR');
-  $('#combo').innerHTML = combo > 40 ? `와르르 ${combo.toLocaleString('ko-KR')}<small>연속</small>` : '';
+  $('#combo').innerHTML = combo > 40 ? `와르르 ${combo.toLocaleString('ko-KR')}<small>연속${genShown > 1 ? ` · 연쇄 ${genShown}단` : ''}</small>` : '';
   $('#combo').classList.toggle('on', combo > 40);
   gainsEl.innerHTML = gained.map((n, t) => (n ? `<i style="--c:${TIERS[t].vein}">${TIERS[t].name} ${n.toLocaleString('ko-KR')}</i>` : '')).join('');
   $('#stats').innerHTML = `<span>그림 엔진</span><b>${glName}</b><span>계산 시간</span><b>${calcMs.toFixed(2)}ms/프레임</b><span>파편</span><b>${pCount.toLocaleString('ko-KR')} / ${PMAX.toLocaleString('ko-KR')}</b><span>파편 양</span><b>×${qMul.toFixed(2)}</b><span>바위 크기</span><b>지름 ${Math.round(rockR * 2)}px</b><span>최대 연속</span><b>${Math.max(comboMax, combo).toLocaleString('ko-KR')}</b><span>화면</span><b>${Math.round(app.screen.width)}×${Math.round(app.screen.height)} ×${app.renderer.resolution}</b>`;
 }, 250);
 addEventListener('resize', () => setTimeout(makeBg, 50));
 // 시험용 손잡이
-window.LAB = { P, get alive() { return alive; }, get fps() { return fpsAvg; }, get calcMs() { return calcMs; }, get particles() { return pCount; }, get broken() { return totalBroken; }, glName, bigBoom };
+window.LAB = { get gen() { return genShown; }, P, get alive() { return alive; }, get fps() { return fpsAvg; }, get calcMs() { return calcMs; }, get particles() { return pCount; }, get broken() { return totalBroken; }, glName, bigBoom };
 </script>
