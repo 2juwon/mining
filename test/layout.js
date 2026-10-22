@@ -1,4 +1,4 @@
-// 스킬 트리 지도 자리 구하기: node test/layout.js 0.6 110 0.5 0.5 → pos.json (src/engine.js의 MAP에 붙여 넣음). 교차선 0, 최소 간격 130 이상이면 통과
+// 스킬 트리 지도 자리 구하기: node test/layout.js 0.65 150 0.5 0.4 → pos.json (src/engine.js의 MAP에 붙여 넣음). 교차선 0, 최소 간격 130 이상이면 통과
 const MG = require('../src/engine.js');
 const N = MG.NODES, idx = Object.fromEntries(N.map((n, i) => [n.id, i]));
 // 처음 자리: 나선 기둥 + 바깥쪽 가지
@@ -13,14 +13,19 @@ for (const n of N) if (n.k === 'mast') {
   const base = P[idx['d' + n.row]], ang = dirOf(n.row) + Math.PI;
   P[idx[n.id]].x = base.x + Math.cos(ang) * 120; P[idx[n.id]].y = base.y + Math.sin(ang) * 120;
 }
-for (const n of N) if (n.col !== 0 && n.k !== 'mast') {
+for (const n of N) if (n.k === 'fork') {
+  // 갈림길 두 칸은 기둥 안쪽(숙련 양옆)으로
+  const base = P[idx['d' + n.row]], i = n.id.endsWith('1') ? -1 : 1, ang = dirOf(n.row) + Math.PI + i * 0.9;
+  P[idx[n.id]].x = base.x + Math.cos(ang) * 130; P[idx[n.id]].y = base.y + Math.sin(ang) * 130;
+}
+for (const n of N) if (n.col !== 0 && n.k !== 'mast' && n.k !== 'fork') {
   const side = Math.sign(n.col), k = Math.abs(n.col);
   let ang = n.row === 0 ? a0 + Math.PI + side * 0.9 : dirOf(n.row) + (side < 0 ? -(+process.argv[4]) : +process.argv[5]);
   const base = P[idx['d' + n.row]];
   P[idx[n.id]].x = base.x + Math.cos(ang) * 130 * k; P[idx[n.id]].y = base.y + Math.sin(ang) * 130 * k;
 }
 const edges = [];
-for (const n of N) for (const r of n.req) edges.push([idx[r], idx[n.id], n.col === 0 ? 175 : n.k === 'mast' ? 115 : 125]);
+for (const n of N) for (const r of n.req) edges.push([idx[r], idx[n.id], n.col === 0 ? 175 : n.k === 'mast' ? 115 : n.k === 'fork' ? 125 : 125]);
 for (let it = 0; it < 4000; it++) {
   const F = P.map(() => ({ x: 0, y: 0 }));
   for (const [a, b, L] of edges) {

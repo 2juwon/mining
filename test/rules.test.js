@@ -168,6 +168,51 @@ const h0 = s.heartHp;
 for (let i = 0; i < 60; i++) MG.step(s, sess, 1 / 30, { x: sess.st.W * 0.2, y: sess.st.H * 0.2 });
 ok(s.heartHp === h0, '심장은 폭발·번개에 다치지 않고 곡괭이로만');
 
+// 새 능력·갈림길
+{
+  const base = () => { const q = MG.newState(0); q.ores = MG.TIERS.map(() => 1e15); for (let t = 1; t < 10; t++) MG.buyNode(q, 'd' + t); for (const p of MG.PICKS) MG.craft(q, p.id); return q; };
+  let q = base();
+  ok(MG.nodeState(q, 'combo1') === 'locked', '새 능력은 가지 끝이라 안쪽 칸을 먼저 열어야 함');
+  ok(MG.nodeState(q, 'fA1') === 'buy' && MG.nodeState(q, 'fA2') === 'buy', '갈림길 둘 다 처음엔 열 수 있음');
+  ok(MG.buyNode(q, 'fA2') && MG.nodeState(q, 'fA1') === 'blocked' && !MG.buyNode(q, 'fA1'), '하나를 고르면 다른 쪽은 닫힘');
+  ok(MG.stats(q).zapN === 2 && MG.stats(q).chain >= 0.1, '번개 광부: 번개 한 번 더 + 확률');
+  q = base(); q.skills.helper1 = 2; q.skills.meteor1 = 1;
+  let st = MG.stats(q);
+  ok(st.helper === 2 && st.meteor === 2, '꼬마 광부 2명, 유성 2개');
+  let ss = MG.newSession(q, MG.rng(3));
+  ok(ss.helpers.length === 2 && ss.meteors.length === 2, '판에 꼬마 광부·유성 일정이 생김');
+  const ev = {};
+  while (!ss.over) { MG.step(q, ss, 1 / 30, null); for (const e of ss.ev) ev[e.e] = (ev[e.e] || 0) + 1; ss.ev.length = 0; }
+  ok(ev.mimpact === 2 && ss.broken > 0, '마우스가 밖에 있어도 유성·꼬마 광부가 캠 (유성 ' + ev.mimpact + ', 바위 ' + ss.broken + ')');
+  q = base(); q.skills.treasure1 = 3; q.skills.vein1 = 3; q.skills.alch1 = 3;
+  const empty = (x) => { for (const k of x.rocks) if (!k.heart) k.dead = true; x.alive = 0; }; // 시험용: 비우고 다시 채우게
+  ss = MG.newSession(q, MG.rng(5)); ss.st.treasure = 1; ss.st.vein = 0; empty(ss);
+  for (let i = 0; i < 40; i++) MG.step(q, ss, 1 / 30, null);
+  const tk = ss.rocks.find((x) => x.treasure && !x.dead && x.born <= ss.t);
+  ok(tk && tk.max > MG.TIERS[tk.tier].hp * ss.st.hpMul * 4, '보물 바위는 5배 단단함');
+  const g0 = q.gems, o0 = q.ores.reduce((a, b) => a + b, 0);
+  ss.ev.length = 0; tk.hp = 1; MG.step(q, ss, 1 / 30, { x: tk.x, y: tk.y });
+  for (let i = 0; i < 30 && !tk.dead; i++) MG.step(q, ss, 1 / 30, { x: tk.x, y: tk.y });
+  ok(tk.dead && q.gems > g0 && q.ores.reduce((a, b) => a + b, 0) - o0 >= 30, '보물 바위를 깨면 보석·광석 왕창');
+  ss = MG.newSession(q, MG.rng(6)); ss.st.vein = 10; ss.st.treasure = 0; empty(ss);
+  for (let i = 0; i < 60; i++) MG.step(q, ss, 1 / 30, null);
+  const ln = Object.values(ss.lineOf || {}).find((m) => m.length >= 3 && m.every((k) => !k.dead && k.born <= ss.t));
+  ok(ln && ln.every((k) => k.tier === ln[0].tier), '광맥 줄기는 같은 광석 여러 개 (' + (ln ? ln.length : 0) + '개)');
+  MG.hitRock(q, ss, ln[0], ln[0].hp + 1, 'swing', 0);
+  ok(ln.slice(1).every((k) => !k.dead), '바로 깨지는 건 맞은 바위 하나뿐');
+  for (let i = 0; i < 30; i++) MG.step(q, ss, 1 / 30, null);
+  ok(ln.every((k) => k.dead), '줄기 하나를 깨면 줄 전체가 깨짐');
+  q = base(); q.skills.lastSec1 = 3;
+  ss = MG.newSession(q, MG.rng(7)); let real = 0;
+  while (!ss.over) { MG.step(q, ss, 1 / 30, null); real += 1 / 30; }
+  ok(real > ss.st.time + 1.5, '마지막 불꽃: 마지막 3초가 더 길게 흐름 (' + real.toFixed(1) + '초 / ' + ss.st.time + '초)');
+  q = base(); q.skills.combo1 = 3; q.skills.rocks1 = 5; q.skills.rocks2 = 5;
+  ss = MG.newSession(q, MG.rng(8)); ss.st.boom = 1; ss.st.keep = 0.8;
+  let maxMul = 1;
+  for (let i = 0; i < 120; i++) { const k = MG.liveRocks(ss)[0]; MG.step(q, ss, 1 / 30, k ? { x: k.x, y: k.y } : null); maxMul = Math.max(maxMul, ss.comboMul); }
+  ok(maxMul > 1.15 && maxMul <= 1 + ss.st.combo + 1e-9, '콤보: 많이 깰수록 광석 배수 오름 (최대 ×' + maxMul.toFixed(2) + ')');
+}
+
 // 저장·불러오기
 s = MG.newState(0);
 const back = MG.fix(JSON.parse(JSON.stringify(s)));

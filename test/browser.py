@@ -9,7 +9,7 @@ url = 'file://' + os.path.abspath(page_path)
 errs = []
 with sync_playwright() as p:
     b = p.chromium.launch(args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
-    pg = b.new_page(viewport={'width': 1440, 'height': 860})
+    pg = b.new_page(viewport={'width': int(os.environ.get('VW', 1440)), 'height': int(os.environ.get('VH', 860))})
     pixi(pg)
     pg.on('console', lambda m: m.type == 'error' and errs.append(m.text))
     pg.on('pageerror', lambda e: errs.append(str(e)))
@@ -21,7 +21,7 @@ with sync_playwright() as p:
         pg.keyboard.press('Space'); pg.wait_for_timeout(300)
         box = pg.locator('#cv').bounding_box()
         t0 = time.time(); k = 0
-        while time.time() - t0 < 40:
+        while time.time() - t0 < float(os.environ.get('PLAY_WAIT', 40)):
             if pg.locator('#result').is_visible() or pg.locator('#clearBox').is_visible(): break
             # 가장 많은 바위가 모인 곳으로 마우스 옮기기
             pos = pg.evaluate('''() => { const rs = MG.liveRocks(sess); if (!rs.length) return null; let best=null,bv=-1; for (const c of rs){let v=0; for(const k of rs){const dx=k.x-c.x,dy=k.y-c.y; if(dx*dx+dy*dy<(sess.st.rad+20)**2) v+=1+k.tier+(k.heart?50:0);} if(v>bv){bv=v;best=c}} return {x: best.x*view.s+view.ox, y: best.y*view.s+view.oy}; }''')

@@ -20,7 +20,7 @@
     { id: 'obsidian', name: '흑요석', hp: 280000, val: 10000, rock: '#241d33', vein: '#b28cff', r: 29 },
     { id: 'star', name: '별철', hp: 1200000, val: 30000, rock: '#2a2c3d', vein: '#fff3b0', r: 30 },
   ];
-  const HEART = { name: '광산의 심장', hp: 60000000000, r: 64 };
+  const HEART = { name: '광산의 심장', hp: 90000000000, r: 64 };
 
   // ── 스킬 트리 ─────────────────────────────────────
   // row = 깊이(그 줄 광석으로 값을 냄), col = 가로 자리(0이 가운데 기둥)
@@ -51,15 +51,36 @@
     sand: ['시간의 모래', '깰 때 {p}% 확률로 +0.5초 (한 판에 채굴 시간의 절반까지)'],
     luck: ['광맥 탐지', '깊은 광석이 더 자주'],
     mine: ['자동 광산', '쉬는 동안에도 광석을 캠'],
+    // 새 능력 (숫자만이 아니라 채굴 모습이 달라짐)
+    combo: ['콤보 채굴', '연달아 많이 깰수록 광석 최대 +{p}%'],
+    treasure: ['보물 바위', '반짝이는 보물 바위가 나옴 (확률 +{p}%) — 깨면 광석·보석 왕창'],
+    vein: ['광맥 줄기', '같은 광석이 줄지어 생김 (확률 +{p}%) — 하나 깨면 줄 전체가 깨짐'],
+    alch: ['연금술', '깬 바위가 {p}% 확률로 한 단계 위 광석을 줌'],
+    vortex: ['소용돌이', '휘두를 때 {p}% 확률로 둘레 바위를 고리 쪽으로 끌어당김'],
+    helper: ['꼬마 광부', '채굴장을 돌아다니며 캐는 꼬마 광부 {n}명'],
+    meteor: ['유성우', '한 판에 유성 {n}개가 떨어져 넓게 터짐'],
+    lastSec: ['마지막 불꽃', '남은 3초 동안 시간이 느려지고 공격력 +{p}%'],
   };
-  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
   const famCount = {};
+  const ABILITY_K = new Set(['combo', 'treasure', 'vein', 'alch', 'vortex', 'helper', 'meteor', 'lastSec']);
   function side(row, col, k, v, max, b, g) {
     famCount[k] = (famCount[k] || 0) + 1;
     const [nm, d] = fam[k];
     NODES.push({ id: k + famCount[k], row, col, k, v, max, b, g: g || 1.55, ct: row,
-      name: nm + ' ' + ROMAN[famCount[k]], desc: d });
+      name: nm + (ABILITY_K.has(k) ? '' : ' ' + ROMAN[famCount[k]]), desc: d, ability: ABILITY_K.has(k) });
   }
+  // 새 능력은 층마다 가지 바깥 끝(col ±3)
+  const ABILITY = [
+    [1, -3, 'combo', 0.25, 3, 14, 1.8],
+    [2, 3, 'treasure', 0.006, 3, 16, 1.8],
+    [3, 3, 'vein', 0.05, 3, 16, 1.8],
+    [4, -3, 'alch', 0.08, 3, 16, 1.8],
+    [5, 3, 'vortex', 0.1, 3, 18, 1.8],
+    [6, -3, 'helper', 1, 3, 18, 1.8],
+    [7, 3, 'meteor', 2, 3, 18, 1.8],
+    [8, 3, 'lastSec', 0.6, 3, 18, 1.8],
+  ];
   // 줄마다 양옆 가지 (col −3 … 3)
   side(0, -1, 'dmg', 0.2, 5, 6);
   side(0, 1, 'time', 1, 3, 12, 1.8);
@@ -107,14 +128,34 @@
     NODES.push({ id: 'm' + t, row: t, col: 'm', k: 'mast', v: MAST_V, max: Infinity, b: 40, g: 1.3, ct: t,
       after: t < 9 ? 'd' + (t + 1) : 'heart', name: TIERS[t].name + ' 숙련', desc: '공격력 +{p}%' });
   }
+  for (const a of ABILITY) side(...a);
+  // 갈림길: 같은 층에서 둘 중 하나만 (하나를 고르면 다른 쪽은 닫힘). fx = [[효과, 값], ...]
+  const FORKS = [
+    ['A', 3, [
+      { id: 'fA1', name: '폭발 광부', desc: '폭발 확률 +6%p, 연쇄 이어짐 +12%p — 폭발이 더 자주, 더 멀리 번져요', icon: 'boom', fx: [['boom', 0.06], ['keep', 0.12]] },
+      { id: 'fA2', name: '번개 광부', desc: '번개 확률 +10%p, 번개가 한 번 더 튀어요', icon: 'chain', fx: [['chain', 0.1], ['zapN', 1]] },
+    ]],
+    ['B', 6, [
+      { id: 'fB1', name: '광맥 장인', desc: '광맥 줄기 확률 +8%p, 줄기가 3칸 더 길어요', icon: 'vein', fx: [['vein', 0.08], ['lineLen', 3]] },
+      { id: 'fB2', name: '보물 사냥꾼', desc: '보물 바위 확률 +1%p, 보물 보상 2배', icon: 'treasure', fx: [['treasure', 0.01], ['treasureMul', 1]] },
+    ]],
+    ['C', 8, [
+      { id: 'fC1', name: '유성 소환사', desc: '유성 +3개, 유성 범위 1.5배', icon: 'meteor', fx: [['meteor', 3], ['meteorR', 0.5]] },
+      { id: 'fC2', name: '광부 대장', desc: '꼬마 광부 +2명, 꼬마 광부가 1.6배 빨라요', icon: 'helper', fx: [['helper', 2], ['helperSpd', 0.6]] },
+    ]],
+  ];
+  for (const [g, row, pair] of FORKS) for (const f of pair) {
+    NODES.push({ id: f.id, row, col: 'f', k: 'fork', group: g, max: 1, b: 60, g: 1, ct: row, name: f.name, desc: f.desc, icon: f.icon, fx: f.fx,
+      other: pair.find((o) => o !== f).id });
+  }
   // 지도 위 자리 (가운데에서 나선으로 깊어짐, test/layout.js 힘 배치로 구해 둔 값)
-  const MAP = {'d0':[0,0], 'd1':[167,-101], 'd2':[263,75], 'd3':[236,274], 'd4':[74,392], 'd5':[-129,416], 'd6':[-327,345], 'd7':[-502,218], 'd8':[-621,49], 'd9':[-648,-142], 'heart':[-547,-291], 'dmg1':[-33,134], 'time1':[-99,-99], 'rad1':[-167,172], 'ore1':[-237,-99], 'spd1':[133,-237], 'rocks1':[267,-198], 'crit1':[72,-361], 'spawn1':[329,-322], 'mine1':[420,-426], 'dmg2':[323,-51], 'time2':[401,65], 'gem1':[428,-140], 'xp1':[532,20], 'critD1':[358,209], 'rad2':[353,349], 'sand1':[496,204], 'boom1':[484,392], 'ore2':[210,422], 'spd2':[116,525], 'luck1':[316,510], 'mine2':[193,640], 'dmg3':[-23,505], 'chain1':[-153,554], 'rocks2':[0,642], 'time3':[-171,691], 'crit2':[-260,465], 'critD2':[-398,468], 'spawn2':[-317,592], 'boom2':[-501,561], 'dmg4':[-601,321], 'rad3':[-637,188], 'ore3':[-692,426], 'mine3':[-757,257], 'spd3':[-749,106], 'chain2':[-734,-32], 'rocks3':[-885,133], 'luck2':[-872,-38], 'dmg5':[-783,-175], 'time4':[-686,-276], 'xp2':[-909,-233], 'critD3':[-742,-403], 'm0':[-132,36], 'm1':[35,-137], 'm2':[134,32], 'm3':[153,168], 'm4':[49,259], 'm5':[-88,287], 'm6':[-312,209], 'm7':[-466,348], 'm8':[-487,22], 'm9':[-512,-156]};
+  const MAP = {'d0':[0,0], 'd1':[174,-89], 'd2':[254,93], 'd3':[191,305], 'd4':[-28,397], 'd5':[-245,316], 'd6':[-427,188], 'd7':[-610,8], 'd8':[-708,-197], 'd9':[-640,-396], 'heart':[-501,-517], 'dmg1':[-15,137], 'time1':[-82,-113], 'rad1':[-153,153], 'ore1':[-217,-145], 'spd1':[167,-228], 'rocks1':[291,-164], 'crit1':[120,-359], 'spawn1':[359,-285], 'mine1':[444,-395], 'dmg2':[328,-24], 'time2':[392,100], 'gem1':[437,-110], 'xp1':[529,78], 'critD1':[337,352], 'rad2':[239,446], 'sand1':[472,322], 'boom1':[362,509], 'ore2':[49,535], 'spd2':[-87,525], 'luck1':[138,641], 'mine2':[-70,662], 'dmg3':[-198,444], 'chain1':[-334,424], 'rocks2':[-215,582], 'time3':[-368,559], 'crit2':[-431,326], 'critD2':[-553,261], 'spawn2':[-517,435], 'boom2':[-673,330], 'dmg4':[-680,137], 'rad3':[-748,19], 'ore3':[-805,197], 'mine3':[-887,27], 'spd3':[-858,-232], 'chain2':[-759,-327], 'rocks3':[-996,-231], 'luck2':[-885,-388], 'dmg5':[-760,-467], 'time4':[-639,-536], 'xp2':[-839,-581], 'critD3':[-655,-673], 'm0':[-136,15], 'm1':[52,-150], 'm2':[130,41], 'm3':[144,178], 'm4':[106,412], 'm5':[-112,286], 'm6':[-381,59], 'm7':[-481,-41], 'm8':[-589,-129], 'm9':[-504,-378], 'combo1':[167,-489], 'treasure1':[656,23], 'vein1':[495,546], 'alch1':[258,710], 'vortex1':[-375,697], 'helper1':[-591,552], 'meteor1':[-1025,28], 'lastSec1':[-1003,-459], 'fA1':[54,283], 'fA2':[301,221], 'fB1':[-543,124], 'fB2':[-291,167], 'fC1':[-588,-267], 'fC2':[-810,-104]};
   for (const n of NODES) { const q = MAP[n.id] || [0, 0]; n.x = q[0]; n.y = q[1]; }
   const NODE = Object.fromEntries(NODES.map((n) => [n.id, n]));
   // 선행 노드: 기둥은 바로 위 기둥, 옆 가지는 안쪽 이웃(없으면 같은 줄 기둥)
   for (const n of NODES) {
     if (n.col === 0) n.req = n.row ? [n.row === 10 ? 'd9' : 'd' + (n.row - 1)] : [];
-    else if (n.k === 'mast') n.req = ['d' + n.row];
+    else if (n.k === 'mast' || n.k === 'fork') n.req = ['d' + n.row];
     else {
       const inner = NODES.find((m) => m.row === n.row && m.col === n.col - Math.sign(n.col));
       n.req = [inner ? inner.id : 'd' + n.row];
@@ -213,7 +254,8 @@
 
   function stats(s) {
     const st = { dmgMul: 1, spdMul: 1, rad: 58, time: 12, rocks: 16, spawn: 3, oreMul: 1, crit: 0.03, critD: 2,
-      gem: 0.008, xpMul: 1, chain: 0, boom: 0, sand: 0, luck: 0, mine: 0, mast: 0, rocksMul: 1, keep: 0.45 };
+      gem: 0.008, xpMul: 1, chain: 0, boom: 0, sand: 0, luck: 0, mine: 0, mast: 0, rocksMul: 1, keep: 0.45,
+      combo: 0, treasure: 0, vein: 0, alch: 0, vortex: 0, helper: 0, meteor: 0, lastSec: 0, zapN: 1, lineLen: 0, treasureMul: 1, meteorR: 1, helperSpd: 1 };
     function add(k, x) {
       switch (k) {
         case 'dmg': st.dmgMul *= 1 + x; break;
@@ -223,6 +265,8 @@
         case 'rocks': st.rocks += x; break;
         case 'rocksMul': st.rocksMul *= 1 + x; break;
         case 'keep': st.keep += x; break;
+        case 'combo': case 'treasure': case 'vein': case 'alch': case 'vortex': case 'helper': case 'meteor': case 'lastSec':
+        case 'zapN': case 'lineLen': case 'treasureMul': case 'meteorR': case 'helperSpd': st[k] += x; break;
         case 'spawn': st.spawn *= 1 + x; break;
         case 'ore': st.oreMul *= 1 + x; break;
         case 'crit': st.crit += x; break;
@@ -239,7 +283,8 @@
     }
     for (const n of NODES) {
       const l = lvOf(s, n.id);
-      if (l && n.k !== 'depth' && n.k !== 'heart') add(n.k, n.v * l);
+      if (!l || n.k === 'depth' || n.k === 'heart') continue;
+      if (n.fx) for (const [fk, fv] of n.fx) add(fk, fv); else add(n.k, n.v * l);
     }
     for (const id in s.talents) {
       const c = CARD[id.split(':')[0]]; if (!c) continue;
@@ -267,7 +312,9 @@
     st.keep = Math.min(0.85, st.keep);
     // 바위가 많을수록 바위 하나당 경험치·보석·시간의 모래는 줄어듦 (전체로는 비슷하게)
     const per = Math.min(1, Math.pow(24 / st.rocks, 0.5));
-    st.xpEach = per; st.gemEach = st.gem * per; st.sandEach = per;
+    st.xpEach = per; st.gemEach = st.gem * per; st.sandEach = per; st.per = per;
+    st.helper = Math.round(st.helper); st.meteor = Math.round(st.meteor);
+    st.vortex = Math.min(0.6, st.vortex); st.alch = Math.min(0.6, st.alch);
     st.hpMul = 1 + CARD_HP * s.cards;
     st.weights = TIERS.map((_, t) => (t <= st.depth ? Math.pow(1.6 + st.luck, t - st.depth) : 0));
     st.wsum = st.weights.reduce((a, b) => a + b, 0);
@@ -276,7 +323,7 @@
 
   // ── 값과 살 수 있는지 ─────────────────────────────
   // 깊을수록 바위가 수천 개로 늘어 광석이 많이 들어오므로 값도 깊이에 따라 키움
-  const ROWMUL = [1, 1, 1.4, 2.6, 4.8, 11, 28, 62, 125, 220, 70];
+  const ROWMUL = [1, 1.1, 2, 4, 7.5, 17, 44, 100, 200, 350, 100];
   for (const p of PICKS) { const mt = Math.max(0, ...Object.keys(p.cost).map(Number)); for (const t in p.cost) p.cost[t] = Math.round(p.cost[t] * ROWMUL[mt]); }
   function nodeCost(n, lv) { // lv = 지금 레벨 (다음 레벨을 살 때의 값)
     const c = {};
@@ -290,6 +337,7 @@
   function nodeState(s, id) {
     const n = NODE[id], lv = lvOf(s, id);
     if (lv >= n.max) return 'max';
+    if (n.other && lvOf(s, n.other)) return 'blocked'; // 갈림길에서 다른 길을 골랐음
     if (!n.req.every((r) => lvOf(s, r) > 0) || (n.after && !lvOf(s, n.after))) return 'locked';
     return canPay(s, nodeCost(n, lv)) ? 'buy' : 'open';
   }
@@ -418,7 +466,10 @@
     const st = stats(s);
     const sess = { st, r, t: 0, timeLeft: st.time, rocks: [], nid: 1, spawnAcc: 0, swingT: st.swing * 0.5, alive: 0,
       gain: TIERS.map(() => 0), gems: 0, xp: 0, score: 0, broken: 0, crits: 0, over: false, ev: [], sandBonus: 0, heartHit: 0,
-      booms: [], gen: 0, genMax: 0, grid: null };
+      booms: [], gen: 0, genMax: 0, grid: null,
+      heat: 0, comboMul: 1, lineQ: [], nextLine: 1, helpers: [], meteors: [], lastOn: false, treasures: 0, lines: 0 };
+    for (let i = 0; i < st.helper; i++) sess.helpers.push({ x: st.W * (0.2 + 0.6 * r()), y: st.H * (0.2 + 0.6 * r()), tx: null, ty: null, re: 0, sw: r() * 0.5, face: 1 });
+    for (let i = 0; i < st.meteor; i++) sess.meteors.push({ t: 0.8 + (i + 0.3 + r() * 0.5) * ((st.time - 1.5) / st.meteor), state: 0 });
     if (s.heartOpen && !s.cleared) {
       sess.rocks.push({ id: sess.nid++, heart: true, x: st.W / 2, y: st.H / 2, r: HEART.r * Math.pow(st.field, 0.8), tier: 9, hp: s.heartHp, max: HEART.hp, born: 0 });
     }
@@ -485,8 +536,31 @@
     if (clash) return null;
     const hp = T.hp * st.hpMul;
     const rock = { id: sess.nid++, x, y, r: rad, tier, hp, max: hp, born: sess.t + (delay || 0), seed: Math.floor(r() * 1e9) };
+    // 보물 바위: 단단하지만 깨면 광석·보석 왕창 (바위가 많을수록 하나당 확률은 줄어듦)
+    if (st.treasure && r() < st.treasure * st.per) { rock.treasure = true; rock.hp = rock.max = hp * 5; rock.r = rad * 1.35; }
     sess.rocks.push(rock); sess.alive++;
+    // 광맥 줄기: 같은 광석이 한 줄로 이어져 생김
+    if (st.vein && !rock.treasure && r() < st.vein * st.per * 3) spawnLine(s, sess, rock);
     return rock;
+  }
+  function spawnLine(s, sess, head) {
+    const st = sess.st, r = sess.r;
+    const len = 3 + Math.floor(r() * 3) + st.lineLen;
+    const a = r() * Math.PI * 2, gap = head.r * 2.3, line = sess.nextLine++;
+    head.line = line;
+    const members = [head];
+    for (let i = 1; i <= len && sess.alive < st.rocks; i++) {
+      const x = head.x + Math.cos(a) * gap * i + (r() - 0.5) * head.r * 0.5, y = head.y + Math.sin(a) * gap * i + (r() - 0.5) * head.r * 0.5;
+      if (x < 40 || y < 40 || x > st.W - 40 || y > st.H - 40) break;
+      let clash = false;
+      near(sess, x, y, head.r * 0.9, () => { clash = true; }, 0.8);
+      if (clash) continue;
+      const k = { id: sess.nid++, x, y, r: head.r * (0.9 + r() * 0.15), tier: head.tier, hp: head.max, max: head.max, born: head.born + i * 0.04, seed: Math.floor(r() * 1e9), line };
+      sess.rocks.push(k); sess.alive++; members.push(k);
+    }
+    if (members.length < 2) { delete head.line; return; }
+    sess.lines++;
+    (sess.lineOf || (sess.lineOf = {}))[line] = members;
   }
   function liveRocks(sess) { return sess.rocks.filter((k) => !k.dead && k.born <= sess.t); }
   function hit(s, sess, rock, dmg, kind, gen) {
@@ -512,17 +586,32 @@
   function breakRock(s, sess, rock, gen) {
     const st = sess.st, r = sess.r, T = TIERS[rock.tier];
     rock.dead = true; sess.alive--;
-    let n = Math.floor(st.oreMul);
-    if (r() < st.oreMul - n) n++;
-    s.ores[rock.tier] += n; s.total[rock.tier] += n; sess.gain[rock.tier] += n;
-    sess.score += n * T.val;
+    // 연금술: 한 단계 위 광석으로 (이미 가장 깊은 광석이면 하나 더)
+    let tier = rock.tier, alch = false;
+    if (st.alch && r() < st.alch) { alch = true; if (tier < st.depth) tier++; }
+    // 콤보: 최근에 많이 깰수록 광석 배수
+    sess.heat += 1;
+    const mul = st.oreMul * sess.comboMul * (alch && tier === rock.tier ? 2 : 1);
+    let n = Math.floor(mul);
+    if (r() < mul - n) n++;
+    if (rock.treasure) { n += Math.round(30 * st.oreMul * st.treasureMul); sess.treasures++; }
+    s.ores[tier] += n; s.total[tier] += n; sess.gain[tier] += n;
+    sess.score += n * TIERS[tier].val;
     sess.broken++; s.broken++;
     const xp = (rock.tier + 1) * st.xpMul * st.xpEach;
     sess.xp += xp;
     const ups = addXp(s, xp);
     let gem = false;
     if (r() < st.gemEach) { s.gems++; sess.gems++; gem = true; }
-    sess.ev.push({ e: 'break', id: rock.id, k: rock, x: rock.x, y: rock.y, r: rock.r, tier: rock.tier, n, gem, up: ups, gen });
+    if (rock.treasure) { const g = 1 + Math.floor(r() * 2 * st.treasureMul); s.gems += g; sess.gems += g; gem = true; }
+    sess.ev.push({ e: 'break', id: rock.id, k: rock, x: rock.x, y: rock.y, r: rock.r, tier: rock.tier, n, gem, up: ups, gen, alch: alch ? tier : -1, treasure: !!rock.treasure, line: rock.line || 0 });
+    // 광맥 줄기: 하나가 깨지면 줄 전체가 차례로 깨짐
+    if (rock.line && sess.lineOf && sess.lineOf[rock.line]) {
+      const mem = sess.lineOf[rock.line]; delete sess.lineOf[rock.line];
+      let i = 0;
+      for (const k of mem) if (k !== rock && !k.dead) sess.lineQ.push({ k, t: sess.t + 0.05 * ++i, gen });
+      if (i) sess.ev.push({ e: 'line', x: rock.x, y: rock.y, n: i });
+    }
     if (st.sand && sess.sandBonus < st.time * 0.5 && r() < st.sand * st.sandEach) { sess.timeLeft += 0.5; sess.sandBonus += 0.5; sess.ev.push({ e: 'sand', x: rock.x, y: rock.y }); }
     // 폭발: 폭발로 깨진 바위가 또 터질 확률은 대(gen)마다 '연쇄 이어짐'을 곱해 줄어듦. 조금씩 늦게 터져 물결처럼 번짐
     if (st.boom && gen < 30 && r() < st.boom * Math.pow(st.keep, gen)) {
@@ -548,8 +637,12 @@
   function step(s, sess, dt, cursor) {
     if (sess.over) return;
     sess.t += dt;
-    sess.timeLeft -= dt;
     const st = sess.st;
+    // 마지막 불꽃: 남은 3초 동안 시간이 느리게 흐르고 공격력이 오름
+    sess.lastOn = !!st.lastSec && sess.timeLeft < 3;
+    sess.timeLeft -= sess.lastOn ? dt / (1 + st.lastSec * 0.6) : dt;
+    sess.heat *= Math.exp(-dt / 0.8);
+    sess.comboMul = st.combo ? 1 + st.combo * Math.min(1, sess.heat / Math.max(6, st.rocks * 0.02) / 3) : 1;
     buildGrid(sess);
     // 바위 다시 생기기 (꽉 차기까지 st.refill초)
     if (sess.alive < st.rocks) {
@@ -566,27 +659,83 @@
         const hits = [];
         near(sess, cursor.x, cursor.y, st.radE, (k) => hits.push(k), 0.6);
         sess.ev.push({ e: 'swing', x: cursor.x, y: cursor.y, n: hits.length });
+        const dmg = st.dmg * (sess.lastOn ? 1 + st.lastSec : 1);
         for (const k of hits) {
-          hit(s, sess, k, st.dmg, 'swing');
+          hit(s, sess, k, dmg, 'swing');
           if (st.chain && sess.r() < st.chain) {
-            let pick = null, seen = 0;
-            near(sess, k.x, k.y, ZAP_R, (o) => { if (o !== k && !o.heart && !o.dead && sess.r() < 1 / ++seen) pick = o; });
-            if (pick) {
-              sess.ev.push({ e: 'zap', x1: k.x, y1: k.y, x2: pick.x, y2: pick.y });
-              hit(s, sess, pick, st.dmg * 1.5, 'zap');
+            let from = k;
+            for (let z = 0; z < st.zapN; z++) { // 번개 광부면 한 번 더 튐
+              let pick = null, seen = 0;
+              near(sess, from.x, from.y, ZAP_R, (o) => { if (o !== from && o !== k && !o.heart && !o.dead && sess.r() < 1 / ++seen) pick = o; });
+              if (!pick) break;
+              sess.ev.push({ e: 'zap', x1: from.x, y1: from.y, x2: pick.x, y2: pick.y });
+              hit(s, sess, pick, dmg * 1.5, 'zap');
+              from = pick;
             }
           }
+        }
+        // 소용돌이: 둘레 바위를 고리 쪽으로 끌어당김
+        if (st.vortex && sess.r() < st.vortex) {
+          const R2 = st.radE * 2.4;
+          near(sess, cursor.x, cursor.y, R2, (k) => {
+            if (k.heart) return;
+            const dx = cursor.x - k.x, dy = cursor.y - k.y, d = Math.hypot(dx, dy);
+            if (d > st.radE * 0.8) { const f = 0.55 * (d - st.radE * 0.6) / d; k.x += dx * f; k.y += dy * f; }
+          });
+          sess.ev.push({ e: 'vortex', x: cursor.x, y: cursor.y, r: R2 });
         }
       }
     }
     doBooms(s, sess);
+    // 광맥 줄기 차례로 깨기
+    if (sess.lineQ.length) {
+      const q = sess.lineQ;
+      for (let i = 0; i < q.length; i++) {
+        if (q[i].t > sess.t) continue;
+        const it = q[i]; q[i] = q[q.length - 1]; q.pop(); i--;
+        if (!it.k.dead) hit(s, sess, it.k, it.k.hp + 1, 'line', it.gen);
+      }
+    }
+    // 꼬마 광부: 바위 쪽으로 걸어가서 작게 휘두름 (심장은 안 때림)
+    for (const h of sess.helpers) {
+      h.re -= dt;
+      if (h.re <= 0 || h.tx == null) {
+        h.re = 1.2 + sess.r() * 0.6;
+        const rk = sess.rocks[(sess.r() * sess.rocks.length) | 0];
+        if (rk && !rk.dead && !rk.heart) { h.tx = rk.x; h.ty = rk.y; } else { h.tx = st.W * sess.r(); h.ty = st.H * sess.r(); }
+      }
+      const sp = 230 * st.field * st.helperSpd * dt, dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy);
+      if (d > sp) { h.x += dx / d * sp; h.y += dy / d * sp; h.face = dx < 0 ? -1 : 1; } else { h.x = h.tx; h.y = h.ty; }
+      h.sw -= dt;
+      if (h.sw <= 0) {
+        h.sw = 0.6 / st.helperSpd;
+        const hr = st.radE * 0.45, list = [];
+        near(sess, h.x, h.y, hr, (k) => { if (!k.heart) list.push(k); }, 0.6);
+        if (list.length) { sess.ev.push({ e: 'hswing', x: h.x, y: h.y, r: hr }); for (const k of list) hit(s, sess, k, st.dmg * 0.6, 'helper'); }
+      }
+    }
+    // 유성우: 정해 둔 때에 떨어짐 (0.6초 동안 떨어진 뒤 쾅)
+    for (const m of sess.meteors) {
+      if (m.state === 0 && sess.t >= m.t) {
+        const rk = sess.rocks[(sess.r() * sess.rocks.length) | 0];
+        m.x = rk && !rk.dead ? rk.x : st.W * (0.2 + 0.6 * sess.r()); m.y = rk && !rk.dead ? rk.y : st.H * (0.2 + 0.6 * sess.r());
+        m.state = 1; m.hitT = sess.t + 0.6;
+        sess.ev.push({ e: 'meteor', x: m.x, y: m.y, dur: 0.6 });
+      } else if (m.state === 1 && sess.t >= m.hitT) {
+        m.state = 2;
+        const R = 320 * st.meteorR, list = [];
+        sess.ev.push({ e: 'mimpact', x: m.x, y: m.y, r: R });
+        near(sess, m.x, m.y, R, (k) => { if (!k.heart) list.push(k); }, 0.6);
+        for (const k of list) hit(s, sess, k, st.dmg * 6, 'meteor', 1);
+      }
+    }
     if (sess.rocks.length > sess.alive * 1.3 + 50) sess.rocks = sess.rocks.filter((k) => !k.dead);
     if (sess.timeLeft <= 0) { sess.timeLeft = 0; sess.over = true; }
   }
   function endSession(s, sess) {
     s.sessions += 1;
     if (sess.score > s.best) s.best = sess.score;
-    return { gain: sess.gain, gems: sess.gems, xp: sess.xp, score: sess.score, broken: sess.broken, crits: sess.crits, heartHit: sess.heartHit, best: s.best === sess.score, genMax: sess.genMax };
+    return { gain: sess.gain, gems: sess.gems, xp: sess.xp, score: sess.score, broken: sess.broken, crits: sess.crits, heartHit: sess.heartHit, best: s.best === sess.score, genMax: sess.genMax, treasures: sess.treasures, lines: sess.lines };
   }
 
   // 저장한 상태 고치기(예전 버전·빠진 칸)
@@ -604,7 +753,7 @@
   const MG = { VERSION, W, H, TIERS, HEART, NODES, NODE, PICKS, PICK, PICK_UP_MAX, PICK_UP_V, pickUpCost, CARDS, RAR, CARD_HP,
     fmt, fmtTime, fillDesc, rng, newState, fix, stats, depthOf, lvOf, nodeCost, nodeState, buyNode, canPay,
     pickState, craft, upgradePick, xpNeed, addXp, openOffer, pickCard, lockCard, reroll, REROLLS, cardInfo, mineRates, idle,
-    newSession, step, endSession, liveRocks, near, BOOM_R };
+    newSession, step, endSession, liveRocks, near, BOOM_R, hitRock: hit };
   if (typeof module !== 'undefined' && module.exports) module.exports = MG;
   else root.MG = MG;
 })(typeof self !== 'undefined' ? self : this);
