@@ -22,6 +22,16 @@
 - **광석 숙련**: 한 층 더 내려가면 지난 광석의 숙련이 열림. 레벨 끝없음, 그 광석으로만 값을 내고 레벨마다 공격력 +1.5%(숙련끼리 더함)
 - **클리어**: 별철 광맥 뒤 「광산의 심장」(체력 900억, 판이 바뀌어도 이어짐)
 
+## 계정 연동
+
+위쪽 구름 버튼(또는 메뉴 → 계정 연동)에서 '내 연동 코드 만들기'를 누르면 서버가 12자리 코드(`XXXX-XXXX-XXXX`)를 줘요. 다른 PC·브라우저에서 그 코드를 넣으면 같은 기록(랭킹 도전 포함)을 이어서 해요. 가입·로그인 없이 코드가 곧 열쇠라, 코드를 아는 사람은 누구나 이어 할 수 있어요.
+
+- 스킬·채굴·카드처럼 내가 한 일은 4초 뒤, 자동 광산으로 저절로 늘어난 것만 있으면 30초 뒤에 서버에 저장. 창을 숨길 때 한 번 더(keepalive), 다시 볼 때 서버 기록 확인
+- 저장할 때마다 진행 표시(`S.pv`)를 새로 붙여서, 다른 기기에서 바뀐 게 자동 광산뿐이면 묻지 않고 맞춤. 두 기기 모두 진행했으면 '어느 기록으로 할까요?' 창에서 고름
+- 채굴 중·테스트 모드에서는 바꾸지 않고, 테스트 모드 기록은 올리지 않음. 소리 설정은 기기마다 따로
+- 서버: `server/src/save.js`(코드마다 Durable Object 하나, rev로 덮어쓰기 막음, 40KB까지, IP당 시간당 코드 10개·없는 코드 30번·저장 1200번). API `POST /api/save`, `GET·POST /api/save/코드`
+- 시험: `node test/save.test.mjs`(서버), `test/sync_browser.py`(브라우저 2개)
+
 ## 랭킹
 
 판마다 표가 따로예요(지금 판 = 2, 클래식 = 1, `/api/rank?v=2`). 새 게임을 시작하면 서버가 도전 번호를 주고 시작 시각을 적어 둠 → 심장을 깨는 순간 서버가 자기 시계로 걸린 시간을 잼 → 이름(8자)을 올림(7일 안, 한 번). 20분보다 빠르거나 40판 미만인 기록은 거절하고 의견함에 자동 신고. 게임은 브라우저에서 돌아가서 저장 내용을 고친 기록까지는 못 막으니, 이상한 기록은 관리 페이지에서 지움.
@@ -32,7 +42,7 @@
 - `src/ui.html` — 화면(PixiJS 7.4.2 legacy로 그리는 채굴장, 스킬 트리, 곡괭이, 재능, 랭킹), 효과음은 WebAudio로 직접 만듦
 - `build.js` — `index.html`(Pages, 서버 주소 포함)과 `dist/mine.html`(아티팩트, 서버 없음)을 만듦
 - `config.json` — 랭킹 서버 주소
-- `server/` — Cloudflare Workers + Durable Objects(Rank, Inbox)
+- `server/` — Cloudflare Workers + Durable Objects(Rank, Inbox, Save)
 - `test/rules.test.js` — 규칙 시험, `test/sim.js` — 자동 플레이로 진행 곡선 재기, `test/browser.py`·`test/online_browser.py` — 브라우저 시험, `server/test/rank.test.mjs` — 서버 시험
 
 ## 고치는 방법
@@ -43,6 +53,6 @@ node test/sim.js 8          # 균형을 바꿨으면 클리어 시간 확인 (�
 node build.js               # index.html 다시 만들기 → 커밋
 ```
 
-서버는 `main`에 `server/`가 바뀌면 GitHub Actions '서버 배포'가 올림(Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, 관리용 `ADMIN_KEY`). 로컬 시험은 `cd server && npx wrangler dev --var FAST_TEST:1 --var ADMIN_KEY:test` → `node test/rank.test.mjs`.
+서버는 `main`에 `server/`가 바뀌면 GitHub Actions '서버 배포'가 올림(Secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, 관리용 `ADMIN_KEY`). 로컬 시험은 `cd server && npx wrangler dev --var FAST_TEST:1 --var ADMIN_KEY:test` → `node test/rank.test.mjs`, `node test/save.test.mjs`. 연동 브라우저 시험은 `SERVER=http://127.0.0.1:8787 node build.js && python3 test/sync_browser.py` 뒤 꼭 `node build.js`로 되돌리기.
 
-저장은 각자 브라우저에만(localStorage `hanpan-mine-v2`, 클래식은 `hanpan-mine-v1`). 브라우저 시험은 pixi 파일을 로컬로 대신 줌(`PIXI=…/pixi-legacy.min.js`).
+저장은 각자 브라우저(localStorage `hanpan-mine-v2`, 연동 정보 `hanpan-mine-v2:sync`, 클래식은 `hanpan-mine-v1`) + 연동하면 서버에도. 브라우저 시험은 pixi 파일을 로컬로 대신 줌(`PIXI=…/pixi-legacy.min.js`).
